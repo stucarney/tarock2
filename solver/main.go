@@ -83,11 +83,15 @@ func main() {
 	c := res.Move.Card
 	specials := ""
 	if c != nil && c.Special != 0 {
+		// Pad after each emoji-arrow with a space so multi-cell terminal
+		// rendering doesn't clobber neighbouring characters (the same
+		// problem we space around ⚔ and 🛡 above).
 		var sb strings.Builder
-		sb.WriteString(" ✦")
+		sb.WriteByte(' ')
 		for d := Dir(0); d < 8; d++ {
 			if c.HasSpecial(d) {
 				sb.WriteString(dirSymbols[d])
+				sb.WriteByte(' ')
 			}
 		}
 		specials = sb.String()
