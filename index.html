@@ -630,7 +630,11 @@ function renderStatus() {
     txt.innerHTML = `<span class="bg-amber-500 text-black px-3 py-1 rounded font-bold">${result}</span>`;
   } else if (sug) {
     const card = state.cards.find(c => c.id === sug.cardId);
-    const sp = (card?.special || []).length ? ` ✦${card.special.join('')}` : '';
+    // Render specials as the same arrow glyphs the cards display (✦→↗
+    // rather than ✦rightupRight) so the text matches the visual.
+    const sp = (card?.special || []).length
+      ? ` ✦${card.special.map(d => DIR_SYMBOL[d] || '').join('')}`
+      : '';
     const evSign = sug.score >= 0 ? '+' : '';
     const reqDepth = sug.requestedDepth || sug.searchDepth;
     const depthLabel = reqDepth > sug.searchDepth ? `${sug.searchDepth}/${reqDepth}-ply (budget reached)` : `${sug.searchDepth}-ply`;

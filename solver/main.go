@@ -87,11 +87,10 @@ func main() {
 		sb.WriteString(" ✦")
 		for d := Dir(0); d < 8; d++ {
 			if c.HasSpecial(d) {
-				sb.WriteString(dirNames[d])
-				sb.WriteByte(' ')
+				sb.WriteString(dirSymbols[d])
 			}
 		}
-		specials = strings.TrimRight(sb.String(), " ")
+		specials = sb.String()
 	}
 
 	depthLabel := fmt.Sprintf("%d-ply", targetDepth)

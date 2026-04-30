@@ -60,6 +60,13 @@ var dirNames = [8]string{
 	"down", "downLeft", "left", "upLeft",
 }
 
+// dirSymbols mirrors DIR_SYMBOL in engine.js — used in CLI output so the
+// printed special-direction arrows match what the web app shows on cards.
+var dirSymbols = [8]string{
+	"↑", "↗", "→", "↘",
+	"↓", "↙", "←", "↖",
+}
+
 func dirFromName(s string) (Dir, error) {
 	for i, n := range dirNames {
 		if n == s {
