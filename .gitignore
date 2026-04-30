@@ -1,0 +1,13 @@
+# Local Claude Code session state (per-machine)
+.claude/
+
+# macOS
+.DS_Store
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+
+# Node — only if dependencies ever get added; the app currently has none
+node_modules/

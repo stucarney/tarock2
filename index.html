@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tarock 2.0 Helper — Oceanhorn 3</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="engine.js"></script>
+<style>
+  body {
+    background:
+      radial-gradient(ellipse at top, #3a2818 0%, #1a0f08 60%, #0a0604 100%);
+    min-height: 100vh;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  }
+  .card {
+    user-select: none;
+    transition: transform .12s ease, box-shadow .12s ease;
+    cursor: grab;
+  }
+  .card:active { cursor: grabbing; }
+  .card.dragging { opacity: .35; transform: scale(.97); }
+  .card.recommended {
+    box-shadow: 0 0 0 3px #fde047, 0 0 24px 4px rgba(253,224,71,.55);
+    animation: pulse 1.4s infinite;
+  }
+  .card.selected {
+    box-shadow: 0 0 0 3px #4ade80, 0 0 18px 6px rgba(74,222,128,.6);
+  }
+  .cell.tap-target {
+    outline: 2px dashed #4ade80;
+    outline-offset: -4px;
+  }
+  @keyframes pulse {
+    0%,100% { box-shadow: 0 0 0 3px #fde047, 0 0 24px 4px rgba(253,224,71,.55); }
+    50%     { box-shadow: 0 0 0 3px #fde047, 0 0 36px 10px rgba(253,224,71,.85); }
+  }
+  .cell {
+    aspect-ratio: 3/4;
+    background: linear-gradient(145deg, #6b4a2a, #4a3018);
+    border: 2px solid #8a5a30;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    transition: background .15s ease, transform .15s ease;
+    position: relative;
+  }
+  .cell.over { background: linear-gradient(145deg, #d4a062, #8a5a30); transform: scale(1.03); }
+  .cell.recommended {
+    background: linear-gradient(145deg, #b8862e, #6b4a14);
+    box-shadow: inset 0 0 0 3px #fde047, 0 0 24px 4px rgba(253,224,71,.45);
+  }
+  .cell.coin-target {
+    box-shadow: inset 0 0 0 3px #f59e0b, 0 0 28px 6px rgba(245,158,11,.7);
+    animation: coin-pulse 1s infinite;
+  }
+  @keyframes coin-pulse {
+    0%,100% { box-shadow: inset 0 0 0 3px #f59e0b, 0 0 28px 6px  rgba(245,158,11,.7); }
+    50%     { box-shadow: inset 0 0 0 3px #fcd34d, 0 0 38px 10px rgba(252,211,77,.95); }
+  }
+  .cell.blocked {
+    background:
+      repeating-linear-gradient(45deg, #6b6b6b 0 8px, #555 8px 16px),
+      linear-gradient(145deg, #888, #555);
+    border-color: #444;
+    cursor: not-allowed;
+  }
+  .cell.blocked::after {
+    content: "🪨";
+    font-size: 1.6rem;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,.5));
+  }
+  .cell.blocked .diamond { display: none; }
+  .cell.block-arming {
+    outline: 2px dashed #fde047;
+    outline-offset: -4px;
+  }
+  .cell .diamond {
+    font-size: 1.5rem;
+    color: rgba(0,0,0,.4);
+  }
+  .placed {
+    position: absolute;
+    inset: 4px;
+    border-radius: 6px;
+    overflow: hidden;
+    display: flex; flex-direction: column;
+    box-shadow: 0 4px 12px rgba(0,0,0,.5);
+  }
+  .red-side {
+    background: linear-gradient(145deg, #d63a3a, #8a1a1a);
+    border: 2px solid #ff6060;
+  }
+  .blue-side {
+    background: linear-gradient(145deg, #2a7ad6, #1a4a8a);
+    border: 2px solid #60a8ff;
+  }
+  .stat-row {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    display: flex; justify-content: space-between;
+    padding: 4px 6px;
+    background: rgba(0,0,0,.4);
+    color: white;
+    font-weight: bold;
+    font-size: 0.85rem;
+  }
+  .stat-atk::before { content: "⚔"; margin-right: 3px; color: #ffd; }
+  .stat-def::before { content: "🛡"; margin-right: 3px; color: #ffd; }
+  .arrow {
+    position: absolute;
+    color: #fde047;
+    text-shadow: 0 0 4px #b45309, 0 1px 2px rgba(0,0,0,.8);
+    font-weight: 900;
+    font-size: 1.3rem;
+    line-height: 1;
+    pointer-events: none;
+  }
+  .arrow.up        { top: 2px;     left: 50%; transform: translateX(-50%); }
+  .arrow.right     { top: 50%;     right: 3px; transform: translateY(-50%); }
+  .arrow.down      { bottom: 22px; left: 50%; transform: translateX(-50%); }
+  .arrow.left      { top: 50%;     left: 3px; transform: translateY(-50%); }
+  .arrow.upLeft    { top: 2px;     left: 3px; }
+  .arrow.upRight   { top: 2px;     right: 3px; }
+  .arrow.downLeft  { bottom: 22px; left: 3px; }
+  .arrow.downRight { bottom: 22px; right: 3px; }
+  .edit-btn {
+    position: absolute;
+    top: -6px; left: -6px;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: #1a1a1a; color: white;
+    border: 2px solid white;
+    font-size: 0.75rem;
+    line-height: 1;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    z-index: 10;
+    box-shadow: 0 2px 4px rgba(0,0,0,.5);
+    opacity: .85;
+  }
+  .edit-btn:hover { background: #d97706; opacity: 1; transform: scale(1.1); }
+  .hand-card {
+    width: 110px;
+    height: 150px;
+    position: relative;
+  }
+  .delete-btn {
+    position: absolute;
+    top: -6px; right: -6px;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: #1a1a1a;
+    color: #fff;
+    border: 2px solid #fff;
+    font-size: 0.85rem;
+    line-height: 1;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    z-index: 10;
+    box-shadow: 0 2px 4px rgba(0,0,0,.5);
+    opacity: .85;
+  }
+  .delete-btn:hover {
+    background: #b91c1c;
+    opacity: 1;
+    transform: scale(1.1);
+  }
+  .grid-card {
+    width: 100%;
+    height: 100%;
+  }
+  .flip-anim {
+    animation: flip .5s ease;
+  }
+  @keyframes flip {
+    0%   { transform: rotateY(0deg); }
+    50%  { transform: rotateY(90deg); }
+    100% { transform: rotateY(0deg); }
+  }
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none; margin: 0;
+  }
+  input[type=number] { -moz-appearance: textfield; }
+</style>
+</head>
+<body class="text-amber-50 p-4">
+
+<div class="max-w-7xl mx-auto">
+  <header class="mb-4 flex items-center justify-between flex-wrap gap-3">
+    <div>
+      <h1 class="text-3xl font-bold tracking-wide">Tarock 2.0 Helper</h1>
+      <p class="text-amber-300/80 text-sm">Oceanhorn 3 — tap a card then a square (or drag), get the best move suggested.</p>
+    </div>
+    <div class="flex gap-2 flex-wrap">
+      <button id="suggestBtn" class="bg-yellow-500 hover:bg-yellow-400 text-black font-bold px-4 py-2 rounded shadow">
+        💡 Suggest Best Move
+      </button>
+      <select id="depthSel" class="bg-stone-800 text-amber-100 px-2 py-2 rounded text-sm" title="Search depth — how many plies the engine looks ahead. Iterative deepening returns the deepest depth that finishes within the search budget.">
+        <option value="1">Depth 1 (immediate)</option>
+        <option value="2">Depth 2</option>
+        <option value="3">Depth 3</option>
+        <option value="4">Depth 4</option>
+        <option value="5">Depth 5</option>
+        <option value="7" selected>Depth 7 (recommended)</option>
+        <option value="8">Depth 8 (~30s fresh)</option>
+        <option value="9">Depth 9</option>
+        <option value="11">Depth 11 (full game)</option>
+      </select>
+      <button id="blockBtn" class="bg-stone-600 hover:bg-stone-500 text-white px-3 py-2 rounded shadow">🪨 Block Square</button>
+      <button id="undoBtn" class="bg-amber-700 hover:bg-amber-600 text-white px-3 py-2 rounded shadow">↶ Undo</button>
+      <button id="resetBtn" class="bg-red-700 hover:bg-red-600 text-white px-3 py-2 rounded shadow">Reset</button>
+    </div>
+  </header>
+
+  <!-- Status bar -->
+  <div id="statusBar" class="mb-3 px-4 py-2 bg-black/40 rounded flex items-center justify-between flex-wrap gap-3">
+    <div class="flex items-center gap-4 flex-wrap">
+      <div class="flex items-center gap-2">
+        <span>Turn:</span>
+        <span id="turnLabel" class="font-bold">— pick who goes first</span>
+        <button id="redFirstBtn" class="bg-red-600 hover:bg-red-500 text-white text-xs px-2 py-1 rounded font-bold">Opponent first</button>
+        <button id="blueFirstBtn" class="bg-blue-600 hover:bg-blue-500 text-white text-xs px-2 py-1 rounded font-bold">You first</button>
+      </div>
+      <div>Score — <span class="text-red-400 font-bold">Opponent: <span id="redScore">0</span></span> · <span class="text-blue-400 font-bold">You: <span id="blueScore">0</span></span></div>
+    </div>
+    <div id="suggestionText" class="text-yellow-300 font-medium"></div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] gap-4 items-start">
+
+    <!-- OPPONENT (RED) HAND -->
+    <section class="bg-red-950/40 border border-red-700/50 rounded-lg p-3">
+      <h2 class="font-bold text-red-300 mb-2 flex items-center justify-between">
+        <span>Opponent (Red)</span>
+        <button data-side="red" class="addCardBtn bg-red-700 hover:bg-red-600 text-white text-xs px-2 py-1 rounded">+ Add Card</button>
+      </h2>
+      <div id="redHand" class="flex flex-wrap gap-2 min-h-[160px]"></div>
+    </section>
+
+    <!-- BOARD -->
+    <section class="bg-stone-900/60 border border-amber-800/50 rounded-lg p-4">
+      <div class="flex justify-end items-center mb-3 text-sm">
+        <div class="text-amber-300/70">Tap a hand card, then a square — or drag</div>
+      </div>
+      <div id="board" class="grid gap-2"></div>
+    </section>
+
+    <!-- YOUR (BLUE) HAND -->
+    <section class="bg-blue-950/40 border border-blue-700/50 rounded-lg p-3">
+      <h2 class="font-bold text-blue-300 mb-2 flex items-center justify-between">
+        <span>Your hand (Blue)</span>
+        <button data-side="blue" class="addCardBtn bg-blue-700 hover:bg-blue-600 text-white text-xs px-2 py-1 rounded">+ Add Card</button>
+      </h2>
+      <div id="blueHand" class="flex flex-wrap gap-2 min-h-[160px]"></div>
+    </section>
+  </div>
+
+  <!-- Quick add row -->
+  <section class="mt-4 bg-stone-900/60 border border-amber-800/50 rounded-lg p-4">
+    <h3 class="font-bold text-amber-200 mb-2">Quick add a card</h3>
+    <form id="quickAddForm" class="flex flex-wrap items-end gap-2">
+      <div>
+        <label class="block text-xs text-amber-300/80">Side</label>
+        <select id="qaSide" class="bg-stone-800 text-amber-100 px-2 py-1 rounded">
+          <option value="blue">Blue (You)</option>
+          <option value="red">Red (Opponent)</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs text-amber-300/80">Attack ⚔</label>
+        <input id="qaAtk" type="number" min="0" max="9" value="3" class="bg-stone-800 text-amber-100 px-2 py-1 rounded w-20" />
+      </div>
+      <div>
+        <label class="block text-xs text-amber-300/80">Defense 🛡</label>
+        <input id="qaDef" type="number" min="0" max="9" value="3" class="bg-stone-800 text-amber-100 px-2 py-1 rounded w-20" />
+      </div>
+      <div>
+        <label class="block text-xs text-amber-300/80">Special Directions</label>
+        <div class="grid grid-cols-3 gap-1 w-24" id="qaSpecial">
+          <button type="button" data-dir="upLeft"    class="qaDirBtn bg-stone-800 hover:bg-stone-700 text-amber-200 rounded h-7" title="Up-left">↖</button>
+          <button type="button" data-dir="up"        class="qaDirBtn bg-stone-800 hover:bg-stone-700 text-amber-200 rounded h-7" title="Up">↑</button>
+          <button type="button" data-dir="upRight"   class="qaDirBtn bg-stone-800 hover:bg-stone-700 text-amber-200 rounded h-7" title="Up-right">↗</button>
+          <button type="button" data-dir="left"      class="qaDirBtn bg-stone-800 hover:bg-stone-700 text-amber-200 rounded h-7" title="Left">←</button>
+          <div></div>
+          <button type="button" data-dir="right"     class="qaDirBtn bg-stone-800 hover:bg-stone-700 text-amber-200 rounded h-7" title="Right">→</button>
+          <button type="button" data-dir="downLeft"  class="qaDirBtn bg-stone-800 hover:bg-stone-700 text-amber-200 rounded h-7" title="Down-left">↙</button>
+          <button type="button" data-dir="down"      class="qaDirBtn bg-stone-800 hover:bg-stone-700 text-amber-200 rounded h-7" title="Down">↓</button>
+          <button type="button" data-dir="downRight" class="qaDirBtn bg-stone-800 hover:bg-stone-700 text-amber-200 rounded h-7" title="Down-right">↘</button>
+        </div>
+      </div>
+      <button type="submit" class="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded font-bold">Add</button>
+    </form>
+  </section>
+
+  <details class="mt-4 bg-stone-900/40 rounded p-3 text-sm">
+    <summary class="cursor-pointer text-amber-200 font-medium">How it works</summary>
+    <div class="mt-2 text-amber-100/80 leading-relaxed space-y-2">
+      <p>Each guard has an <b>Attack</b> (⚔) and <b>Defense</b> (🛡). When you place a card, every adjacent (up/down/left/right) enemy card whose <b>defense &lt; your attack</b> flips to your side. If <b>defense = attack</b>, the game flips a coin — a popup will ask you to enter the actual outcome.</p>
+      <p><b>Special Directions</b> ✦ — set any of eight arrows on a card via the 3×3 compass in Quick Add or the <b>✏</b> editor. A Special Direction wins the battle on that side <i>regardless of who's attacking</i>:
+      <br>• <b>Attacker's special toward defender</b> → attacker auto-wins the battle.
+      <br>• <b>Defender's special pointing back at attacker</b> (opposite arrow) → defender auto-wins, no flip.
+      <br>• <b>Both at once</b> (attacker's special + defender's counter-special) → clash, coin toss.
+      <br>• Diagonals (↖ ↗ ↙ ↘) only create a battle when the <i>attacker</i> has that diagonal special; orthogonal neighbors always battle (regular Atk/Def, modified by either side's special as above).</p>
+      <p><b>Who goes first</b> — the game decides this for you; just click <b>You first</b> or <b>Opponent first</b> to match. Use <b>swap</b> any time you need to correct course.</p>
+      <p><b>Win condition</b> — most cards on the board after 11 are played wins. The status bar will show the result.</p>
+      <p><b>Suggest Best Move</b> evaluates every (card, square) combination for the side whose turn it is. The score is <i>flips you'd take now</i> minus the <i>biggest counter-flip your opponent could land next turn</i>. The recommended card and square get a yellow glow.</p>
+      <p><b>Placing a card</b> — on touch, tap a hand card (it gets a green ring) then tap an empty square. On desktop you can also drag the card onto a square. Tap an empty cell while a recommendation is showing to confirm the suggested move.</p>
+      <p><b>Fixing mistakes</b> — tap a placed card to remove it back to the hand. <b>Long-press</b> (touch) or <b>right-click</b> (desktop) a placed card to flip its owner — handy for correcting a mis-recorded coin-flip outcome without undoing the whole turn.</p>
+      <p><b>Blocked square (required)</b> — every Tarock 2.0 match has exactly one stone tile, leaving 11 playable squares. Click <b>🪨 Block Square</b>, then click the stone tile on the grid. The app won't let you place a card until that's done.</p>
+      <p><b>Coin tosses</b> — for every tied battle (equal Atk/Def, or a Special-Direction clash), a popup asks <i>"What did the game say?"</i>. The popup labels each prompt with the defender's <i>row N · col M</i> (and pulses the on-board cell) so you know which battle it's asking about when several queue up. The app never randomizes the outcome itself — it records exactly what you enter.</p>
+      <p><b>Best move = pessimistic minimax search</b>. The engine recursively considers every (card × empty-square) move, then assumes the opponent picks <i>their</i> best reply, and so on. At every coin-toss branch in the search, it picks the outcome that is <i>worst for you</i> — i.e., it never bets on a flip going your way. The "worst-case lead" number is the score difference you're guaranteed assuming every coin flip goes against you; the suggested move is the safest choice under that assumption.</p>
+    </div>
+  </details>
+</div>
+
+<script>
+/* =========================================================
+   Tarock 2.0 helper — single-file app
+   ========================================================= */
+
+const state = {
+  cards: [],          // {id, side:'red'|'blue', name, atk, def, location:'hand'|{x,y}, owner:'red'|'blue'}
+  turn: null,         // who places next — set by coin flip or manually
+  cols: 4,
+  rows: 3,
+  blocked: [],        // [{x,y}] — stone tiles that can't be played
+  history: [],        // snapshots for undo
+  recommendation: null, // {cardId, x, y, score, expGain, expLoss}
+  blockingMode: false,  // when true, clicking an empty square toggles a block
+  selectedCardId: null, // tap-to-select target for touch devices
+};
+
+let nextId = 1;
+
+/* ---------- engine bindings ----------
+ * The pure game logic + search lives in engine.js. Here we just bind it to the
+ * single mutable `state` object so the rest of this file can call helpers
+ * without threading state through every callsite. */
+const {DIRS, OPP_DIR, ORTHO_DIRS, isOrtho, DIR_SYMBOL} = Engine;
+const inBounds        = (x, y) => Engine.inBounds(state, x, y);
+const isBlocked       = (x, y) => Engine.isBlocked(state, x, y);
+const cardAt          = (x, y) => Engine.cardAt(state.cards, x, y);
+const neighbors       = (x, y) => Engine.neighbors(state, x, y);
+const dirFromTo       = Engine.dirFromTo;
+const hasAnySpecial   = Engine.hasAnySpecial;
+const resolveCaptures = (placed, board) => Engine.resolveCaptures(state, placed, board);
+const moveOutcomes    = (card, x, y, side, board) => Engine.moveOutcomes(state, card, x, y, side, board);
+const staticScore     = Engine.staticScore;
+const emptySquares    = (board) => Engine.emptySquares(state, board);
+const gameOver        = (board) => Engine.gameOver(state, board);
+const chanceCombine   = Engine.chanceCombine;
+const bestMoveForSide = (side, maxDepth) => Engine.bestMoveForSide(state, side, maxDepth);
+
+/* ---------- helpers ---------- */
+function snapshot() {
+  return JSON.parse(JSON.stringify({cards: state.cards, turn: state.turn, cols: state.cols, rows: state.rows, blocked: state.blocked}));
+}
+function pushHistory() { state.history.push(snapshot()); if (state.history.length > 50) state.history.shift(); }
+function restore(s) {
+  state.cards = s.cards; state.turn = s.turn; state.cols = s.cols; state.rows = s.rows;
+  state.blocked = s.blocked || [];
+  state.selectedCardId = null;
+}
+
+async function applyLiveCaptures(placedCard) {
+  const caps = resolveCaptures(placedCard, state.cards);
+  // Briefly highlight the defending cell while its coin-flip modal is open,
+  // so the row/col label has a visual anchor on the board.
+  for (const cap of caps) {
+    if (cap.certain) {
+      cap.card.owner = placedCard.owner;
+      flashCell(cap.card.location.x, cap.card.location.y);
+    } else {
+      const attackerLabel = `Your card (⚔${placedCard.atk})`;
+      const defenderLabel = `Their card (🛡${cap.card.def})`;
+      const subtitle = cap.reason === 'special-clash'
+        ? 'Special Direction clash — coin toss'
+        : 'Stats are tied — coin toss';
+      const dx = cap.card.location.x, dy = cap.card.location.y;
+      highlightCell(dx, dy, true);
+      const won = await askCoinOutcome(placedCard.owner, attackerLabel, defenderLabel, subtitle, {x: dx, y: dy});
+      highlightCell(dx, dy, false);
+      if (won) {
+        cap.card.owner = placedCard.owner;
+        flashCell(dx, dy);
+      }
+    }
+  }
+  render();
+}
+
+/* Modal asking the user to enter a tie outcome from the in‑game coin flip.
+ * `defenderXY` is the cell the defender currently occupies — surfaced as
+ * "row N · col M" so the user can pick the right battle out when several
+ * coin flips queue up for a single placement. */
+function askCoinOutcome(attackerSide, attackerLabel, defenderLabel, subtitle = 'Stats are tied — what did the game say?', defenderXY = null) {
+  return new Promise(resolve => {
+    const overlay = document.createElement('div');
+    overlay.className = 'fixed inset-0 bg-black/70 flex items-center justify-center z-50';
+    const cellPill = defenderXY
+      ? `<div class="mb-3"><span class="inline-block bg-amber-500 text-black font-bold px-3 py-1 rounded">📍 row ${defenderXY.y + 1} · col ${defenderXY.x + 1}</span></div>`
+      : '';
+    overlay.innerHTML = `
+      <div class="bg-stone-900 border-2 border-amber-600 rounded-lg p-5 max-w-md text-center shadow-2xl">
+        <div class="text-2xl mb-2">🪙 Coin flip</div>
+        ${cellPill}
+        <div class="text-amber-100 mb-1">${escapeHtml(attackerLabel)} vs ${escapeHtml(defenderLabel)}</div>
+        <div class="text-amber-300/80 text-sm mb-4">${escapeHtml(subtitle)}</div>
+        <div class="flex gap-3 justify-center">
+          <button id="winBtn" class="${attackerSide === 'blue' ? 'bg-blue-600 hover:bg-blue-500' : 'bg-red-600 hover:bg-red-500'} text-white font-bold px-4 py-2 rounded">${attackerSide === 'blue' ? 'You won' : 'Opponent won'}</button>
+          <button id="loseBtn" class="bg-stone-700 hover:bg-stone-600 text-white px-4 py-2 rounded">${attackerSide === 'blue' ? 'You lost' : 'Opponent lost'}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector('#winBtn').addEventListener('click', () => { overlay.remove(); resolve(true); });
+    overlay.querySelector('#loseBtn').addEventListener('click', () => { overlay.remove(); resolve(false); });
+  });
+}
+
+/* Toggle a glowing outline on the cell at (x,y). Used during coin-flip
+ * prompts so the modal's "row N · col M" pill has a visual on-board match. */
+function highlightCell(x, y, on) {
+  const cell = document.querySelector(`.cell[data-x="${x}"][data-y="${y}"]`);
+  if (!cell) return;
+  cell.classList.toggle('coin-target', !!on);
+}
+
+/* ---------- rendering ---------- */
+function render() {
+  renderBoard();
+  renderHand('red');
+  renderHand('blue');
+  renderStatus();
+  refreshBlockBtn();
+}
+
+function renderBoard() {
+  const board = document.getElementById('board');
+  board.style.gridTemplateColumns = `repeat(${state.cols}, minmax(0, 1fr))`;
+  board.innerHTML = '';
+  for (let y=0; y<state.rows; y++) {
+    for (let x=0; x<state.cols; x++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.dataset.x = x; cell.dataset.y = y;
+      const blocked = isBlocked(x, y);
+      if (blocked) cell.classList.add('blocked');
+      if (state.blockingMode && !cardAt(x,y)) cell.classList.add('block-arming');
+
+      cell.addEventListener('dragover', e => {
+        if (blocked) return;
+        e.preventDefault(); cell.classList.add('over');
+      });
+      cell.addEventListener('dragleave', () => cell.classList.remove('over'));
+      cell.addEventListener('drop', e => {
+        if (blocked) return;
+        e.preventDefault(); cell.classList.remove('over');
+        const id = parseInt(e.dataTransfer.getData('text/plain'), 10);
+        placeCard(id, x, y);
+      });
+
+      cell.addEventListener('click', () => {
+        if (state.blockingMode) {
+          if (cardAt(x,y)) { toast('Square is occupied — clear it first.'); return; }
+          toggleBlock(x, y);
+          return;
+        }
+        // Tap-to-place: if a hand card is currently selected and this cell
+        // is empty + not blocked, drop the card here. (Drag-and-drop still
+        // works in parallel for desktop.)
+        if (state.selectedCardId !== null && !cardAt(x, y) && !blocked) {
+          const id = state.selectedCardId;
+          state.selectedCardId = null;
+          placeCard(id, x, y);
+        }
+      });
+
+      const card = cardAt(x, y);
+      if (card) {
+        const el = renderCardEl(card, 'grid-card');
+        el.title = `Atk ${card.atk} / Def ${card.def}\nTap: remove · Long-press / right-click: flip owner`;
+        el.addEventListener('click', (ev) => {
+          if (state.blockingMode) return;
+          if (el._suppressClick && el._suppressClick()) return;
+          ev.stopPropagation();
+          removePlaced(card.id);
+        });
+        // Right-click (desktop) and long-press (touch) both flip the
+        // current owner — for fixing a mis-recorded coin outcome without
+        // rolling the whole turn back.
+        el.addEventListener('contextmenu', (ev) => {
+          if (state.blockingMode) return;
+          ev.preventDefault();
+          ev.stopPropagation();
+          flipPlacedOwner(card.id);
+        });
+        attachLongPress(el, () => {
+          if (state.blockingMode) return;
+          flipPlacedOwner(card.id);
+        });
+        cell.appendChild(el);
+      } else if (!blocked) {
+        const dia = document.createElement('div');
+        dia.className = 'diamond';
+        dia.textContent = '◆';
+        cell.appendChild(dia);
+      }
+
+      if (state.recommendation && state.recommendation.x === x && state.recommendation.y === y && !card && !blocked) {
+        cell.classList.add('recommended');
+      }
+      // While a hand card is selected, mark valid drop cells so the user
+      // sees where the tap will land.
+      if (state.selectedCardId !== null && !card && !blocked && !state.blockingMode) {
+        cell.classList.add('tap-target');
+      }
+      board.appendChild(cell);
+    }
+  }
+}
+
+function renderHand(side) {
+  const el = document.getElementById(side==='red' ? 'redHand' : 'blueHand');
+  el.innerHTML = '';
+  const cards = state.cards.filter(c => c.side === side && c.location === 'hand');
+  cards.forEach(c => {
+    const cardEl = renderCardEl(c, 'hand-card');
+    cardEl.draggable = true;
+    cardEl.addEventListener('dragstart', e => {
+      e.dataTransfer.setData('text/plain', c.id);
+      cardEl.classList.add('dragging');
+    });
+    cardEl.addEventListener('dragend', () => cardEl.classList.remove('dragging'));
+    // Tap-to-select for touch (and desktop click). Tapping the same card
+    // again deselects; tapping a different card replaces the selection.
+    cardEl.addEventListener('click', (ev) => {
+      if (state.blockingMode) return;
+      if (ev.target.closest('.edit-btn')) return; // edit button handles itself
+      if (cardEl._suppressClick && cardEl._suppressClick()) return;
+      state.selectedCardId = (state.selectedCardId === c.id) ? null : c.id;
+      render();
+    });
+    if (state.recommendation && state.recommendation.cardId === c.id) {
+      cardEl.classList.add('recommended');
+    }
+    if (state.selectedCardId === c.id) {
+      cardEl.classList.add('selected');
+    }
+    // Edit button (top-left)
+    const editBtn = document.createElement('button');
+    editBtn.className = 'edit-btn';
+    editBtn.textContent = '✏';
+    editBtn.title = 'Edit card';
+    editBtn.addEventListener('click', e => { e.stopPropagation(); openEditModal(c.id); });
+    editBtn.addEventListener('mousedown', e => e.stopPropagation());
+    cardEl.appendChild(editBtn);
+    // Right-click to delete
+    cardEl.addEventListener('contextmenu', e => {
+      e.preventDefault();
+      if (confirm('Remove this card?')) {
+        pushHistory();
+        state.cards = state.cards.filter(x => x.id !== c.id);
+        state.recommendation = null;
+        render();
+      }
+    });
+    el.appendChild(cardEl);
+  });
+  if (cards.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'text-stone-400 italic text-sm self-center px-2';
+    empty.textContent = 'No cards yet — use Quick Add below.';
+    el.appendChild(empty);
+  }
+}
+
+function renderCardEl(card, sizeClass) {
+  const el = document.createElement('div');
+  el.className = `card ${sizeClass} rounded ${card.owner === 'red' ? 'red-side' : 'blue-side'}`;
+  const sp = (card.special || []).length ? ` [special: ${card.special.join(', ')}]` : '';
+  el.title = `Atk ${card.atk} / Def ${card.def}${sp}`;
+  el.dataset.cardId = card.id;
+  const arrows = (card.special || []).map(d => {
+    const sym = DIR_SYMBOL[d] || '';
+    return `<span class="arrow ${d}">${sym}</span>`;
+  }).join('');
+  el.innerHTML = `
+    ${arrows}
+    <div class="stat-row">
+      <span class="stat-atk">${card.atk}</span>
+      <span class="stat-def">${card.def}</span>
+    </div>
+  `;
+  return el;
+}
+
+function renderStatus() {
+  const turnLabel = document.getElementById('turnLabel');
+  if (state.turn === 'blue') {
+    turnLabel.textContent = 'You (Blue)';
+    turnLabel.className = 'font-bold text-blue-400';
+  } else if (state.turn === 'red') {
+    turnLabel.textContent = 'Opponent (Red)';
+    turnLabel.className = 'font-bold text-red-400';
+  } else {
+    turnLabel.textContent = '— pick who goes first';
+    turnLabel.className = 'font-bold text-amber-300/80 italic';
+  }
+  const placed = state.cards.filter(c => c.location && typeof c.location === 'object');
+  const red = placed.filter(c => c.owner === 'red').length;
+  const blue = placed.filter(c => c.owner === 'blue').length;
+  document.getElementById('redScore').textContent = red;
+  document.getElementById('blueScore').textContent = blue;
+
+  const sug = state.recommendation;
+  const txt = document.getElementById('suggestionText');
+  const totalCells = state.cols * state.rows - state.blocked.length;
+
+  if (state.blocked.length === 0) {
+    txt.innerHTML = `<span class="bg-stone-700 text-amber-200 px-3 py-1 rounded font-bold">⚠ Click 🪨 Block Square — exactly one tile must be blocked before the game can start.</span>`;
+  } else if (state.blocked.length > 1) {
+    txt.innerHTML = `<span class="bg-red-700 text-white px-3 py-1 rounded font-bold">⚠ Only one square can be blocked. Click the extra blocks to remove them.</span>`;
+  } else if (placed.length >= totalCells) {
+    let result;
+    if (blue > red) result = `🏆 You win — ${blue}–${red}!`;
+    else if (red > blue) result = `🏴 Opponent wins — ${red}–${blue}.`;
+    else result = `🤝 Tie — ${blue}–${red}.`;
+    txt.innerHTML = `<span class="bg-amber-500 text-black px-3 py-1 rounded font-bold">${result}</span>`;
+  } else if (sug) {
+    const card = state.cards.find(c => c.id === sug.cardId);
+    const sp = (card?.special || []).length ? ` ✦${card.special.join('')}` : '';
+    const evSign = sug.score >= 0 ? '+' : '';
+    const reqDepth = sug.requestedDepth || sug.searchDepth;
+    const depthLabel = reqDepth > sug.searchDepth ? `${sug.searchDepth}/${reqDepth}-ply (budget reached)` : `${sug.searchDepth}-ply`;
+    txt.textContent = `Best: ⚔${card?.atk}/🛡${card?.def}${sp} → r${sug.y+1} c${sug.x+1} · worst-case lead after ${depthLabel}: ${evSign}${sug.score.toFixed(2)} (guaranteed flips: ${sug.expGain.toFixed(2)}, ${sug.searchNodes.toLocaleString()} nodes / ${sug.searchMs}ms)`;
+  } else {
+    txt.textContent = '';
+  }
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ---------- actions ---------- */
+async function placeCard(id, x, y) {
+  const card = state.cards.find(c => c.id === id);
+  if (!card) return;
+  if (card.location !== 'hand') return; // already placed
+  if (cardAt(x, y)) return;
+  if (isBlocked(x, y)) { toast('That square is blocked.'); return; }
+  if (state.blocked.length !== 1) { toast('Block exactly one square to start the game.'); return; }
+  if (!state.turn) { toast('Pick who goes first.'); return; }
+  if (card.side !== state.turn) { toast(`It's ${state.turn === 'blue' ? "your" : "the opponent's"} turn.`); return; }
+  pushHistory();
+  card.location = {x, y};
+  card.owner = card.side; // initial owner = original side
+  await applyLiveCaptures(card);
+  // flip turn
+  state.turn = state.turn === 'red' ? 'blue' : 'red';
+  state.recommendation = null;
+  state.selectedCardId = null;
+  render();
+}
+
+function removePlaced(id) {
+  if (!confirm('Remove this placed card from the board?')) return;
+  const card = state.cards.find(c => c.id === id);
+  if (!card) return;
+  pushHistory();
+  card.location = 'hand';
+  card.owner = card.side;
+  state.recommendation = null;
+  render();
+}
+
+/**
+ * Touch long-press detector. Calls `handler` after ~550ms of stationary
+ * contact, and arms a one-shot capture-phase listener that swallows the
+ * synthetic click iOS fires after the touchend so the long-press doesn't
+ * also remove/select the underlying element. Handlers should still check
+ * `el._suppressClick && el._suppressClick()` early in their click logic
+ * as a belt-and-suspenders fallback.
+ */
+function attachLongPress(el, handler) {
+  let timer = null, fired = false, sx = 0, sy = 0, suppressUntil = 0;
+  const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
+  el._suppressClick = () => Date.now() < suppressUntil;
+  el.addEventListener('touchstart', e => {
+    fired = false;
+    if (e.touches && e.touches[0]) { sx = e.touches[0].clientX; sy = e.touches[0].clientY; }
+    timer = setTimeout(() => { fired = true; handler(); }, 550);
+  }, { passive: true });
+  el.addEventListener('touchmove', e => {
+    if (!timer || !e.touches[0]) return;
+    const dx = e.touches[0].clientX - sx, dy = e.touches[0].clientY - sy;
+    if (dx*dx + dy*dy > 64) cancel(); // moved >8px → not a long-press
+  }, { passive: true });
+  el.addEventListener('touchend', () => {
+    cancel();
+    if (fired) suppressUntil = Date.now() + 400;
+  });
+  el.addEventListener('touchcancel', cancel);
+}
+
+/* Flip the current owner of a placed card. Used when the user mis-recorded
+ * a coin-flip outcome (or just wants to correct an in-game capture). No
+ * confirm dialog — corrections need to be quick, and Undo is one click away. */
+function flipPlacedOwner(id) {
+  const card = state.cards.find(c => c.id === id);
+  if (!card || !card.location || typeof card.location !== 'object') return;
+  pushHistory();
+  card.owner = card.owner === 'blue' ? 'red' : 'blue';
+  state.recommendation = null;
+  flashCell(card.location.x, card.location.y);
+  render();
+  toast(`Flipped → ${card.owner === 'blue' ? 'You' : 'Opponent'}`);
+}
+
+function flashCell(x, y) {
+  setTimeout(() => {
+    const cell = document.querySelector(`.cell[data-x="${x}"][data-y="${y}"] .card`);
+    if (cell) cell.classList.add('flip-anim');
+    setTimeout(() => cell?.classList.remove('flip-anim'), 600);
+  }, 30);
+}
+
+function toast(msg) {
+  const t = document.createElement('div');
+  t.textContent = msg;
+  t.className = 'fixed top-4 right-4 bg-yellow-500 text-black px-4 py-2 rounded shadow-lg font-bold z-50';
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2400);
+}
+
+function toggleBlock(x, y) {
+  pushHistory();
+  const idx = state.blocked.findIndex(b => b.x === x && b.y === y);
+  if (idx >= 0) state.blocked.splice(idx, 1);
+  else state.blocked.push({x, y});
+  // There's only ever one block per game, so once it's placed we drop out
+  // of blocking mode automatically — the button flips to "Clear block".
+  if (state.blocked.length >= 1) state.blockingMode = false;
+  state.recommendation = null;
+  render();
+}
+
+function setBlockingMode(on) {
+  state.blockingMode = on;
+  render();
+}
+
+/* Re-skin the block button based on current state:
+ *   - arming           → yellow "Click an empty square"
+ *   - 1 block placed   → red    "Clear block"
+ *   - default (0, off) → grey   "Block Square"
+ * Called from render() so any state change picks up the right label. */
+function refreshBlockBtn() {
+  const btn = document.getElementById('blockBtn');
+  if (!btn) return;
+  btn.classList.remove(
+    'bg-stone-600', 'hover:bg-stone-500',
+    'bg-yellow-500', 'hover:bg-yellow-400',
+    'bg-red-700', 'hover:bg-red-600',
+    'text-black',
+  );
+  if (state.blockingMode) {
+    btn.classList.add('bg-yellow-500', 'hover:bg-yellow-400', 'text-black');
+    btn.textContent = '🪨 Click an empty square';
+  } else if (state.blocked.length >= 1) {
+    btn.classList.add('bg-red-700', 'hover:bg-red-600');
+    btn.textContent = '✖ Clear block';
+  } else {
+    btn.classList.add('bg-stone-600', 'hover:bg-stone-500');
+    btn.textContent = '🪨 Block Square';
+  }
+}
+
+/* The search runs in a Web Worker so the page stays responsive even during
+ * the longer searches (e.g. depth 8 from a fresh start ≈ 30s on Mac, more
+ * on iPhone). Without this, the browser would show "Page Unresponsive" and
+ * iOS Safari can outright kill long-blocking tabs. */
+let searchWorker = null;
+let searchInFlight = null; // {btn, origText, depth, t0, tickHandle} or null
+
+function getSearchWorker() {
+  if (searchWorker) return searchWorker;
+  searchWorker = new Worker('worker.js');
+  searchWorker.onmessage = (e) => {
+    const msg = e.data || {};
+    if (msg.type !== 'result' || !searchInFlight) return;
+    const { btn, origText, depth, tickHandle } = searchInFlight;
+    searchInFlight = null;
+    clearInterval(tickHandle);
+    btn.disabled = false; btn.textContent = origText;
+    if (msg.err) { toast('Search error: ' + msg.err); return; }
+    const best = msg.best;
+    if (!best) { toast('No legal moves found.'); return; }
+    best.searchMs = msg.ms;
+    best.requestedDepth = depth;
+    state.recommendation = best;
+    render();
+  };
+  searchWorker.onerror = (e) => {
+    if (searchInFlight) {
+      const { btn, origText, tickHandle } = searchInFlight;
+      clearInterval(tickHandle);
+      btn.disabled = false; btn.textContent = origText;
+      searchInFlight = null;
+    }
+    toast('Worker error: ' + (e.message || 'unknown'));
+  };
+  return searchWorker;
+}
+
+function suggestBestMove() {
+  if (state.blocked.length !== 1) { toast('Block exactly one square to start the game.'); return; }
+  if (!state.turn) { toast('Pick who goes first.'); return; }
+  if (searchInFlight) { toast('Already thinking — give it a moment.'); return; }
+  const depth = parseInt(document.getElementById('depthSel').value, 10) || 2;
+  const btn = document.getElementById('suggestBtn');
+  const origText = btn.textContent;
+  btn.disabled = true; btn.textContent = '🤔 Thinking… 0s';
+  const t0 = performance.now();
+  // Tick a live elapsed-time counter while the worker grinds.
+  const tickHandle = setInterval(() => {
+    if (!searchInFlight) return;
+    const s = Math.floor((performance.now() - t0) / 1000);
+    btn.textContent = `🤔 Thinking… ${s}s`;
+  }, 250);
+  searchInFlight = { btn, origText, depth, t0, tickHandle };
+  // Send a structured-clone-friendly snapshot of just the fields the
+  // engine needs. We strip non-engine state (history, turn, etc.).
+  const snap = JSON.parse(JSON.stringify({
+    cards: state.cards,
+    cols: state.cols,
+    rows: state.rows,
+    blocked: state.blocked,
+  }));
+  getSearchWorker().postMessage({ type: 'suggest', state: snap, side: state.turn, depth });
+}
+
+/* ---------- card entry ---------- */
+function addCard(side, atk, def, special = []) {
+  state.cards.push({
+    id: nextId++, side, owner: side,
+    atk: clampStat(atk), def: clampStat(def),
+    special: Array.isArray(special) ? [...special] : [],
+    location: 'hand'
+  });
+  render();
+}
+function clampStat(n) { n = parseInt(n, 10); if (isNaN(n)) n = 0; return Math.max(0, Math.min(15, n)); }
+
+/* ---------- event wiring ---------- */
+/* Quick Add — direction toggles */
+const qaSpecialSet = new Set();
+document.querySelectorAll('#qaSpecial .qaDirBtn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const d = btn.dataset.dir;
+    if (qaSpecialSet.has(d)) {
+      qaSpecialSet.delete(d);
+      btn.classList.remove('bg-yellow-500','text-black');
+      btn.classList.add('bg-stone-800','text-amber-200');
+    } else {
+      qaSpecialSet.add(d);
+      btn.classList.add('bg-yellow-500','text-black');
+      btn.classList.remove('bg-stone-800','text-amber-200');
+    }
+  });
+});
+
+document.getElementById('quickAddForm').addEventListener('submit', e => {
+  e.preventDefault();
+  addCard(
+    document.getElementById('qaSide').value,
+    document.getElementById('qaAtk').value,
+    document.getElementById('qaDef').value,
+    [...qaSpecialSet]
+  );
+  // Reset direction buttons
+  qaSpecialSet.clear();
+  document.querySelectorAll('#qaSpecial .qaDirBtn').forEach(b => {
+    b.classList.remove('bg-yellow-500','text-black');
+    b.classList.add('bg-stone-800','text-amber-200');
+  });
+});
+
+/* Edit modal */
+function openEditModal(cardId) {
+  const card = state.cards.find(c => c.id === cardId);
+  if (!card) return;
+  const overlay = document.createElement('div');
+  overlay.className = 'fixed inset-0 bg-black/70 flex items-center justify-center z-50';
+  overlay.innerHTML = `
+    <div class="bg-stone-900 border-2 border-amber-600 rounded-lg p-5 w-80 shadow-2xl">
+      <div class="text-xl font-bold mb-3 text-amber-200">Edit card</div>
+      <label class="block text-xs text-amber-300/80">Side</label>
+      <select id="emSide" class="bg-stone-800 text-amber-100 px-2 py-1 rounded w-full mb-2">
+        <option value="blue">Blue (You)</option>
+        <option value="red">Red (Opponent)</option>
+      </select>
+      <div class="flex gap-2 mb-3">
+        <div class="flex-1">
+          <label class="block text-xs text-amber-300/80">Attack ⚔</label>
+          <input id="emAtk" type="number" min="0" max="15" class="bg-stone-800 text-amber-100 px-2 py-1 rounded w-full" />
+        </div>
+        <div class="flex-1">
+          <label class="block text-xs text-amber-300/80">Defense 🛡</label>
+          <input id="emDef" type="number" min="0" max="15" class="bg-stone-800 text-amber-100 px-2 py-1 rounded w-full" />
+        </div>
+      </div>
+      <label class="block text-xs text-amber-300/80 mb-1">Special Directions</label>
+      <div class="grid grid-cols-3 gap-1 mb-4 w-32 mx-auto" id="emSpecial">
+        <button type="button" data-dir="upLeft"    class="emDirBtn bg-stone-800 text-amber-200 rounded h-9">↖</button>
+        <button type="button" data-dir="up"        class="emDirBtn bg-stone-800 text-amber-200 rounded h-9">↑</button>
+        <button type="button" data-dir="upRight"   class="emDirBtn bg-stone-800 text-amber-200 rounded h-9">↗</button>
+        <button type="button" data-dir="left"      class="emDirBtn bg-stone-800 text-amber-200 rounded h-9">←</button>
+        <div></div>
+        <button type="button" data-dir="right"     class="emDirBtn bg-stone-800 text-amber-200 rounded h-9">→</button>
+        <button type="button" data-dir="downLeft"  class="emDirBtn bg-stone-800 text-amber-200 rounded h-9">↙</button>
+        <button type="button" data-dir="down"      class="emDirBtn bg-stone-800 text-amber-200 rounded h-9">↓</button>
+        <button type="button" data-dir="downRight" class="emDirBtn bg-stone-800 text-amber-200 rounded h-9">↘</button>
+      </div>
+      <div class="flex gap-2 justify-between">
+        <button id="emDelete" class="bg-red-700 hover:bg-red-600 text-white px-3 py-2 rounded">Delete</button>
+        <div class="flex gap-2">
+          <button id="emCancel" class="bg-stone-700 hover:bg-stone-600 text-white px-3 py-2 rounded">Cancel</button>
+          <button id="emSave" class="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded font-bold">Save</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.querySelector('#emSide').value = card.side;
+  overlay.querySelector('#emAtk').value = card.atk;
+  overlay.querySelector('#emDef').value = card.def;
+  const editSpecial = new Set(card.special || []);
+  const refreshDirBtns = () => {
+    overlay.querySelectorAll('.emDirBtn').forEach(b => {
+      if (editSpecial.has(b.dataset.dir)) {
+        b.classList.add('bg-yellow-500','text-black'); b.classList.remove('bg-stone-800','text-amber-200');
+      } else {
+        b.classList.remove('bg-yellow-500','text-black'); b.classList.add('bg-stone-800','text-amber-200');
+      }
+    });
+  };
+  refreshDirBtns();
+  overlay.querySelectorAll('.emDirBtn').forEach(b => {
+    b.addEventListener('click', () => {
+      const d = b.dataset.dir;
+      if (editSpecial.has(d)) editSpecial.delete(d); else editSpecial.add(d);
+      refreshDirBtns();
+    });
+  });
+  overlay.querySelector('#emCancel').addEventListener('click', () => overlay.remove());
+  overlay.querySelector('#emDelete').addEventListener('click', () => {
+    if (!confirm('Delete this card?')) return;
+    pushHistory();
+    state.cards = state.cards.filter(x => x.id !== card.id);
+    state.recommendation = null;
+    overlay.remove();
+    render();
+  });
+  overlay.querySelector('#emSave').addEventListener('click', () => {
+    pushHistory();
+    card.side = overlay.querySelector('#emSide').value;
+    if (card.location === 'hand') card.owner = card.side;
+    card.atk = clampStat(overlay.querySelector('#emAtk').value);
+    card.def = clampStat(overlay.querySelector('#emDef').value);
+    card.special = [...editSpecial];
+    state.recommendation = null;
+    overlay.remove();
+    render();
+  });
+}
+
+document.querySelectorAll('.addCardBtn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.getElementById('qaSide').value = btn.dataset.side;
+    document.getElementById('qaAtk').focus();
+  });
+});
+
+document.getElementById('suggestBtn').addEventListener('click', suggestBestMove);
+document.getElementById('blockBtn').addEventListener('click', () => {
+  // If a block is already placed (and we're not currently arming), the button
+  // is showing "Clear block" — clear and immediately re-arm so the user can
+  // pick a new tile in one motion.
+  if (!state.blockingMode && state.blocked.length >= 1) {
+    pushHistory();
+    state.blocked = [];
+    state.recommendation = null;
+    setBlockingMode(true);
+    return;
+  }
+  setBlockingMode(!state.blockingMode);
+});
+
+document.getElementById('blueFirstBtn').addEventListener('click', () => {
+  pushHistory();
+  state.turn = 'blue';
+  state.recommendation = null;
+  render();
+});
+document.getElementById('redFirstBtn').addEventListener('click', () => {
+  pushHistory();
+  state.turn = 'red';
+  state.recommendation = null;
+  render();
+});
+
+document.getElementById('undoBtn').addEventListener('click', () => {
+  const last = state.history.pop();
+  if (!last) { toast('Nothing to undo.'); return; }
+  restore(last);
+  state.recommendation = null;
+  render();
+});
+document.getElementById('resetBtn').addEventListener('click', () => {
+  if (!confirm('Clear board and all cards?')) return;
+  state.cards = []; state.history = []; state.turn = null; state.recommendation = null;
+  state.blocked = [];
+  state.selectedCardId = null;
+  nextId = 1;
+  setBlockingMode(true); // auto-arm so the user can immediately pick the blocked tile
+  render();
+});
+
+/* ---------- init ---------- */
+render();
+</script>
+</body>
+</html>
