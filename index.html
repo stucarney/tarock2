@@ -196,21 +196,24 @@
       <button id="suggestBtn" class="bg-yellow-500 hover:bg-yellow-400 text-black font-bold px-4 py-2 rounded shadow">
         💡 Suggest Best Move
       </button>
-      <select id="depthSel" class="bg-stone-800 text-amber-100 px-2 py-2 rounded text-sm" title="Search depth — how many plies the engine looks ahead. Iterative deepening returns the deepest depth that finishes within the search budget.">
+      <select id="depthSel" class="bg-stone-800 text-amber-100 px-2 py-2 rounded text-sm" title="Search depth — how many plies the engine looks ahead. Iterative deepening returns the deepest depth that finishes within the 35s budget; if a level can't fit you get the deepest one that did.">
         <option value="1">Depth 1 (immediate)</option>
         <option value="2">Depth 2</option>
         <option value="3">Depth 3</option>
         <option value="4">Depth 4</option>
         <option value="5">Depth 5</option>
-        <option value="7" selected>Depth 7 (recommended)</option>
-        <option value="8">Depth 8 (~30s fresh)</option>
+        <option value="7">Depth 7</option>
+        <option value="8">Depth 8</option>
         <option value="9">Depth 9</option>
-        <option value="11">Depth 11 (full game)</option>
+        <option value="11" selected>Depth 11 (auto-cap)</option>
       </select>
       <button id="blockBtn" class="bg-stone-600 hover:bg-stone-500 text-white px-3 py-2 rounded shadow">🪨 Block Square</button>
       <button id="undoBtn" class="bg-amber-700 hover:bg-amber-600 text-white px-3 py-2 rounded shadow">↶ Undo</button>
       <button id="resetBtn" class="bg-red-700 hover:bg-red-600 text-white px-3 py-2 rounded shadow">Reset</button>
     </div>
+    <p class="basis-full text-amber-300/70 text-xs italic">
+      Depth 11 = full game; iterative deepening with a 35s budget auto-caps to the deepest depth that finishes (status shows e.g. <code>7/11-ply (budget reached)</code>). Mid-game depth 11 actually solves the rest of the game in &lt;1s.
+    </p>
   </header>
 
   <!-- Status bar -->
@@ -302,9 +305,10 @@
       <br>• <b>Defender's special pointing back at attacker</b> (opposite arrow) → defender auto-wins, no flip.
       <br>• <b>Both at once</b> (attacker's special + defender's counter-special) → clash, coin toss.
       <br>• Diagonals (↖ ↗ ↙ ↘) only create a battle when the <i>attacker</i> has that diagonal special; orthogonal neighbors always battle (regular Atk/Def, modified by either side's special as above).</p>
-      <p><b>Who goes first</b> — the game decides this for you; just click <b>You first</b> or <b>Opponent first</b> to match. Use <b>swap</b> any time you need to correct course.</p>
+      <p><b>Who goes first</b> — the game decides this for you; just click <b>You first</b> or <b>Opponent first</b> to match.</p>
       <p><b>Win condition</b> — most cards on the board after 11 are played wins. The status bar will show the result.</p>
       <p><b>Suggest Best Move</b> evaluates every (card, square) combination for the side whose turn it is. The score is <i>flips you'd take now</i> minus the <i>biggest counter-flip your opponent could land next turn</i>. The recommended card and square get a yellow glow.</p>
+      <p><b>Depth</b> — leave it on <b>Depth 11</b>. The engine uses iterative deepening with a 35s budget: it returns the deepest level that fully completed within the budget, so you always get the best answer your time-tolerance allowed. Mid-game (5+ cards placed) depth 11 is the full remaining game tree and finishes in well under a second; from a fresh-start position it caps at ~depth 7-8 and the status bar shows e.g. <code>7/11-ply (budget reached)</code>.</p>
       <p><b>Placing a card</b> — on touch, tap a hand card (it gets a green ring) then tap an empty square. On desktop you can also drag the card onto a square. Tap an empty cell while a recommendation is showing to confirm the suggested move.</p>
       <p><b>Fixing mistakes</b> — tap a placed card to remove it back to the hand. <b>Long-press</b> (touch) or <b>right-click</b> (desktop) a placed card to flip its owner — handy for correcting a mis-recorded coin-flip outcome without undoing the whole turn.</p>
       <p><b>Blocked square (required)</b> — every Tarock 2.0 match has exactly one stone tile, leaving 11 playable squares. Click <b>🪨 Block Square</b>, then click the stone tile on the grid. The app won't let you place a card until that's done.</p>
