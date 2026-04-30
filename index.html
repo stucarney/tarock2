@@ -190,6 +190,26 @@
     -webkit-appearance: none; margin: 0;
   }
   input[type=number] { -moz-appearance: textfield; }
+  /* 0–10 number pickers in the Quick Add form */
+  .numpick-row {
+    display: flex; flex-wrap: wrap; gap: 3px;
+  }
+  .numpick-btn {
+    background: #44403c;
+    color: #fef3c7;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    width: 28px; height: 28px;
+    display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    user-select: none;
+  }
+  .numpick-btn:hover { background: #57534e; }
+  .numpick-btn.selected {
+    background: #eab308;
+    color: #1c1917;
+  }
 </style>
 </head>
 <body class="text-amber-50 p-4">
@@ -270,11 +290,11 @@
       </div>
       <div>
         <label class="block text-xs text-amber-300/80">Attack ⚔</label>
-        <input id="qaAtk" type="number" min="0" max="9" value="3" class="bg-stone-800 text-amber-100 px-2 py-1 rounded w-20" />
+        <div id="qaAtkRow" class="numpick-row"></div>
       </div>
       <div>
         <label class="block text-xs text-amber-300/80">Defense 🛡</label>
-        <input id="qaDef" type="number" min="0" max="9" value="3" class="bg-stone-800 text-amber-100 px-2 py-1 rounded w-20" />
+        <div id="qaDefRow" class="numpick-row"></div>
       </div>
       <div>
         <label class="block text-xs text-amber-300/80">Special Directions</label>
@@ -827,9 +847,42 @@ function addCard(side, atk, def, special = []) {
   });
   render();
 }
-function clampStat(n) { n = parseInt(n, 10); if (isNaN(n)) n = 0; return Math.max(0, Math.min(15, n)); }
+function clampStat(n) { n = parseInt(n, 10); if (isNaN(n)) n = 0; return Math.max(0, Math.min(10, n)); }
 
 /* ---------- event wiring ---------- */
+
+/* Build a 0–10 number picker into `container`. Returns {get, reset} so the
+ * caller can read the current value or restore the default. */
+function makeNumberPicker(container, defaultVal) {
+  let current = defaultVal;
+  const buttons = [];
+  for (let i = 0; i <= 10; i++) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = i;
+    b.dataset.val = i;
+    b.className = 'numpick-btn';
+    if (i === defaultVal) b.classList.add('selected');
+    b.addEventListener('click', () => {
+      current = i;
+      buttons.forEach(x => x.classList.toggle('selected',
+        parseInt(x.dataset.val, 10) === current));
+    });
+    buttons.push(b);
+    container.appendChild(b);
+  }
+  return {
+    get: () => current,
+    reset: () => {
+      current = defaultVal;
+      buttons.forEach(x => x.classList.toggle('selected',
+        parseInt(x.dataset.val, 10) === current));
+    },
+  };
+}
+const qaAtkPicker = makeNumberPicker(document.getElementById('qaAtkRow'), 3);
+const qaDefPicker = makeNumberPicker(document.getElementById('qaDefRow'), 3);
+
 /* Quick Add — direction toggles */
 const qaSpecialSet = new Set();
 document.querySelectorAll('#qaSpecial .qaDirBtn').forEach(btn => {
@@ -851,11 +904,13 @@ document.getElementById('quickAddForm').addEventListener('submit', e => {
   e.preventDefault();
   addCard(
     document.getElementById('qaSide').value,
-    document.getElementById('qaAtk').value,
-    document.getElementById('qaDef').value,
+    qaAtkPicker.get(),
+    qaDefPicker.get(),
     [...qaSpecialSet]
   );
-  // Reset direction buttons
+  // Reset pickers + direction buttons back to default for next entry.
+  qaAtkPicker.reset();
+  qaDefPicker.reset();
   qaSpecialSet.clear();
   document.querySelectorAll('#qaSpecial .qaDirBtn').forEach(b => {
     b.classList.remove('bg-yellow-500','text-black');
@@ -877,16 +932,10 @@ function openEditModal(cardId) {
         <option value="blue">Blue (You)</option>
         <option value="red">Red (Opponent)</option>
       </select>
-      <div class="flex gap-2 mb-3">
-        <div class="flex-1">
-          <label class="block text-xs text-amber-300/80">Attack ⚔</label>
-          <input id="emAtk" type="number" min="0" max="15" class="bg-stone-800 text-amber-100 px-2 py-1 rounded w-full" />
-        </div>
-        <div class="flex-1">
-          <label class="block text-xs text-amber-300/80">Defense 🛡</label>
-          <input id="emDef" type="number" min="0" max="15" class="bg-stone-800 text-amber-100 px-2 py-1 rounded w-full" />
-        </div>
-      </div>
+      <label class="block text-xs text-amber-300/80">Attack ⚔</label>
+      <div id="emAtkRow" class="numpick-row mb-2"></div>
+      <label class="block text-xs text-amber-300/80">Defense 🛡</label>
+      <div id="emDefRow" class="numpick-row mb-3"></div>
       <label class="block text-xs text-amber-300/80 mb-1">Special Directions</label>
       <div class="grid grid-cols-3 gap-1 mb-4 w-32 mx-auto" id="emSpecial">
         <button type="button" data-dir="upLeft"    class="emDirBtn bg-stone-800 text-amber-200 rounded h-9">↖</button>
@@ -909,8 +958,8 @@ function openEditModal(cardId) {
     </div>`;
   document.body.appendChild(overlay);
   overlay.querySelector('#emSide').value = card.side;
-  overlay.querySelector('#emAtk').value = card.atk;
-  overlay.querySelector('#emDef').value = card.def;
+  const emAtkPicker = makeNumberPicker(overlay.querySelector('#emAtkRow'), card.atk);
+  const emDefPicker = makeNumberPicker(overlay.querySelector('#emDefRow'), card.def);
   const editSpecial = new Set(card.special || []);
   const refreshDirBtns = () => {
     overlay.querySelectorAll('.emDirBtn').forEach(b => {
@@ -942,8 +991,8 @@ function openEditModal(cardId) {
     pushHistory();
     card.side = overlay.querySelector('#emSide').value;
     if (card.location === 'hand') card.owner = card.side;
-    card.atk = clampStat(overlay.querySelector('#emAtk').value);
-    card.def = clampStat(overlay.querySelector('#emDef').value);
+    card.atk = emAtkPicker.get();
+    card.def = emDefPicker.get();
     card.special = [...editSpecial];
     state.recommendation = null;
     overlay.remove();
@@ -954,7 +1003,6 @@ function openEditModal(cardId) {
 document.querySelectorAll('.addCardBtn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.getElementById('qaSide').value = btn.dataset.side;
-    document.getElementById('qaAtk').focus();
   });
 });
 
