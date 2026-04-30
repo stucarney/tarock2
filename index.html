@@ -206,6 +206,7 @@
       <button id="blockBtn" class="bg-stone-600 hover:bg-stone-500 text-white px-3 py-2 rounded shadow">🪨 Block Square</button>
       <button id="undoBtn" class="bg-amber-700 hover:bg-amber-600 text-white px-3 py-2 rounded shadow">↶ Undo</button>
       <button id="resetBtn" class="bg-red-700 hover:bg-red-600 text-white px-3 py-2 rounded shadow">Reset</button>
+      <button id="exportBtn" class="bg-stone-700 hover:bg-stone-600 text-white px-3 py-2 rounded shadow" title="Copy a JSON snapshot of the game to the clipboard so the Go solver (./solver) can search depth 11 from a desktop terminal.">📋 Copy for CLI</button>
     </div>
     <p class="basis-full text-amber-300/70 text-xs italic">
       Depth 11 = full game; iterative deepening with a 35s budget auto-caps to the deepest depth that finishes (status shows e.g. <code>7/11-ply (budget reached)</code>). Mid-game depth 11 actually solves the rest of the game in &lt;1s.
@@ -983,6 +984,43 @@ document.querySelectorAll('.addCardBtn').forEach(btn => {
 });
 
 document.getElementById('suggestBtn').addEventListener('click', suggestBestMove);
+
+/* Export the current game state as compact JSON to the clipboard so the Go
+ * CLI solver (./solver) can read it via:
+ *     pbpaste | ./tarock-solve
+ * The shape matches what solver/engine.go's ParseGame expects. */
+document.getElementById('exportBtn').addEventListener('click', async () => {
+  if (!state.turn) { toast('Pick who goes first first.'); return; }
+  if (state.blocked.length !== 1) { toast('Block exactly one square first.'); return; }
+  const payload = {
+    cards: state.cards.map(c => ({
+      id: c.id, side: c.side, owner: c.owner,
+      atk: c.atk, def: c.def, special: c.special || [],
+      location: (c.location && typeof c.location === 'object')
+        ? { x: c.location.x, y: c.location.y } : 'hand',
+    })),
+    cols: state.cols, rows: state.rows,
+    blocked: state.blocked.map(b => ({ x: b.x, y: b.y })),
+    turn: state.turn,
+  };
+  const json = JSON.stringify(payload);
+  try {
+    await navigator.clipboard.writeText(json);
+    toast('Copied ✓ — run: pbpaste | ./tarock-solve');
+  } catch (e) {
+    // navigator.clipboard requires a secure context; fall back to a textarea
+    // and prompt the user to copy manually.
+    const ta = document.createElement('textarea');
+    ta.value = json;
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (_) {}
+    ta.remove();
+    toast(ok ? 'Copied ✓ — run: pbpaste | ./tarock-solve' : 'Copy failed — open dev tools and grab from console:');
+    if (!ok) console.log(json);
+  }
+});
 document.getElementById('blockBtn').addEventListener('click', () => {
   // If a block is already placed (and we're not currently arming), the button
   // is showing "Clear block" — clear and immediately re-arm so the user can

@@ -7,25 +7,44 @@ best next move under worst-case-coin-flip assumptions.
 
 The app is split into:
 
-- `index.html` — UI, rendering, drag-and-drop, modals, event wiring. Loads
-  `engine.js` via a `<script>` tag.
+- `index.html` — UI, rendering, tap-to-place + drag-and-drop, modals, event
+  wiring. Loads `engine.js` and runs the search in a Web Worker
+  (`worker.js`) so iOS Safari stays responsive on long searches.
 - `engine.js` — pure game logic + search. No DOM access; works in browser
   and Node. Browser publishes it as `globalThis.Engine`; Node exports the
   same object via CommonJS.
+- `worker.js` — thin wrapper that loads `engine.js` and runs
+  `bestMoveForSide` off the main thread.
 - `engine.test.js` — `node:test` suite covering combat, move generation,
   evaluation, and search.
 - `bench.js` — Node benchmark of `Engine.bestMoveForSide`.
+- `solver/` — companion **Go CLI** that reads the JSON game state copied
+  from the **📋 Copy for CLI** button in the web app and solves to depth
+  11 natively. Same algorithm as the JS engine; faster per node and uses
+  a much larger transposition table (no V8 Map.size limit). See
+  [solver/README.md](solver/README.md).
 
-There is no build step. Tailwind is loaded from a CDN.
+There is no build step for the web app. Tailwind is loaded from a CDN.
+The Go solver is built independently with `go build`.
 
 ---
 
 ## How to run
 
-- **Play it**: open `index.html` in a browser. (`engine.js` must be next
-  to it — the page does `<script src="engine.js">`.)
-- **Run the tests**: `node --test engine.test.js` (Node 20+).
-- **Benchmark the engine**: `node bench.js` (works on Node 18+).
+- **Play it**: open `index.html` in a browser. (`engine.js` and
+  `worker.js` must be next to it — the page loads them via `<script
+  src="…">`.)
+- **Run the JS tests**: `node --test engine.test.js` (Node 20+).
+- **Benchmark the JS engine**: `node bench.js` (works on Node 18+).
+- **Run the Go solver locally**: from the web app, click **📋 Copy for
+  CLI**, then in a terminal:
+  ```bash
+  cd solver
+  go build -o tarock-solve .
+  pbpaste | ./tarock-solve              # depth 11 by default
+  pbpaste | ./tarock-solve --max-time 5m # cap at 5 minutes
+  ```
+- **Run the Go tests**: `cd solver && go test ./...`
 
 ---
 
