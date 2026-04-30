@@ -106,7 +106,10 @@ func main() {
 	}
 
 	fmt.Println()
-	fmt.Printf("Best move: ⚔%d/🛡%d%s → row %d, col %d\n",
+	// Insert spaces around the emoji glyphs — many terminals render the
+	// shield/sword as 2 cells wide while only advancing the cursor by 1,
+	// which collides with the digit that follows.
+	fmt.Printf("Best move: ⚔ %d / 🛡 %d%s → row %d, col %d\n",
 		c.Atk, c.Def, specials, res.Move.Y+1, res.Move.X+1)
 	fmt.Printf("Worst-case lead after %s: %s%d (guaranteed flips: %d)\n",
 		depthLabel, sign, res.Move.Score, res.Move.ExpGain)
