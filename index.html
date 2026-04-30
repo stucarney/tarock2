@@ -204,20 +204,13 @@
       <button id="suggestBtn" class="bg-yellow-500 hover:bg-yellow-400 text-black font-bold px-4 py-2 rounded shadow">
         💡 Suggest Best Move
       </button>
-      <select id="depthSel" class="bg-stone-800 text-amber-100 px-2 py-2 rounded text-sm" title="Search depth — how many plies the engine looks ahead. Iterative deepening returns the deepest depth that finishes within the 35s budget; if a level can't fit you get the deepest one that did.">
-        <option value="7">Depth 7</option>
-        <option value="8">Depth 8</option>
-        <option value="9">Depth 9</option>
-        <option value="10">Depth 10</option>
-        <option value="11" selected>Depth 11 (auto-cap)</option>
-      </select>
       <button id="blockBtn" class="bg-stone-600 hover:bg-stone-500 text-white px-3 py-2 rounded shadow">🪨 Block Square</button>
       <button id="undoBtn" class="bg-amber-700 hover:bg-amber-600 text-white px-3 py-2 rounded shadow">↶ Undo</button>
       <button id="resetBtn" class="bg-red-700 hover:bg-red-600 text-white px-3 py-2 rounded shadow">Reset</button>
       <button id="exportBtn" class="bg-stone-700 hover:bg-stone-600 text-white px-3 py-2 rounded shadow" title="Copy a JSON snapshot of the game to the clipboard so the Go solver (./solver) can search depth 11 from a desktop terminal.">📋 Copy for CLI</button>
     </div>
     <p class="basis-full text-amber-300/70 text-xs italic">
-      Depth 11 = full game; iterative deepening with a 35s budget auto-caps to the deepest depth that finishes (status shows e.g. <code>7/11-ply (budget reached)</code>). Mid-game depth 11 actually solves the rest of the game in &lt;1s.
+      In-browser search runs at depth 7 (≤4s on the worst case). For full-game-tree depth-11 solves, click <b>📋 Copy for CLI</b> and paste into a terminal sitting in <code>solver/</code>.
     </p>
   </header>
 
@@ -313,7 +306,7 @@
       <p><b>Who goes first</b> — the game decides this for you; just click <b>You first</b> or <b>Opponent first</b> to match.</p>
       <p><b>Win condition</b> — most cards on the board after 11 are played wins. The status bar will show the result.</p>
       <p><b>Suggest Best Move</b> evaluates every (card, square) combination for the side whose turn it is. The score is <i>flips you'd take now</i> minus the <i>biggest counter-flip your opponent could land next turn</i>. The recommended card and square get a yellow glow.</p>
-      <p><b>Depth</b> — leave it on <b>Depth 11</b>. The engine uses iterative deepening with a 35s budget: it returns the deepest level that fully completed within the budget, so you always get the best answer your time-tolerance allowed. Mid-game (5+ cards placed) depth 11 is the full remaining game tree and finishes in well under a second; from a fresh-start position it caps at ~depth 7-8 and the status bar shows e.g. <code>7/11-ply (budget reached)</code>.</p>
+      <p><b>Depth & the CLI</b> — the in-browser engine searches 7 plies, which on the worst case (fresh-start, 0 placed) finishes in ~4s. For deeper analysis — including full-game-tree (depth 11) solves from any position — click <b>📋 Copy for CLI</b> to copy a ready-to-paste shell command and run it in a terminal sitting in <code>solver/</code> (build once with <code>cd solver && go build -o tarock-solve .</code>). The native Go solver is much faster and prints the same recommendation in 1–40 seconds depending on position.</p>
       <p><b>Placing a card</b> — on touch, tap a hand card (it gets a green ring) then tap an empty square. On desktop you can also drag the card onto a square. Tap an empty cell while a recommendation is showing to confirm the suggested move.</p>
       <p><b>Fixing mistakes</b> — tap a placed card to remove it back to the hand. <b>Long-press</b> (touch) or <b>right-click</b> (desktop) a placed card to flip its owner — handy for correcting a mis-recorded coin-flip outcome without undoing the whole turn.</p>
       <p><b>Blocked square (required)</b> — every Tarock 2.0 match has exactly one stone tile, leaving 11 playable squares. Click <b>🪨 Block Square</b>, then click the stone tile on the grid. The app won't let you place a card until that's done.</p>
@@ -790,68 +783,38 @@ function refreshBlockBtn() {
   }
 }
 
-/* The search runs in a Web Worker so the page stays responsive even during
- * the longer searches (e.g. depth 8 from a fresh start ≈ 30s on Mac, more
- * on iPhone). Without this, the browser would show "Page Unresponsive" and
- * iOS Safari can outright kill long-blocking tabs. */
-let searchWorker = null;
-let searchInFlight = null; // {btn, origText, depth, t0, tickHandle} or null
-
-function getSearchWorker() {
-  if (searchWorker) return searchWorker;
-  searchWorker = new Worker('worker.js');
-  searchWorker.onmessage = (e) => {
-    const msg = e.data || {};
-    if (msg.type !== 'result' || !searchInFlight) return;
-    const { btn, origText, depth, tickHandle } = searchInFlight;
-    searchInFlight = null;
-    clearInterval(tickHandle);
-    btn.disabled = false; btn.textContent = origText;
-    if (msg.err) { toast('Search error: ' + msg.err); return; }
-    const best = msg.best;
-    if (!best) { toast('No legal moves found.'); return; }
-    best.searchMs = msg.ms;
-    best.requestedDepth = depth;
-    state.recommendation = best;
-    render();
-  };
-  searchWorker.onerror = (e) => {
-    if (searchInFlight) {
-      const { btn, origText, tickHandle } = searchInFlight;
-      clearInterval(tickHandle);
-      btn.disabled = false; btn.textContent = origText;
-      searchInFlight = null;
-    }
-    toast('Worker error: ' + (e.message || 'unknown'));
-  };
-  return searchWorker;
-}
+/* In-browser search runs on the main thread (with a setTimeout to let the
+ * "Thinking…" state paint first). Capped at depth 7 — the longest search
+ * (fresh-start, 0 placed) finishes in a few seconds, well under any
+ * "Page Unresponsive" threshold. For deeper, full-game-tree solves use
+ * the Go CLI in solver/ instead. */
+const SEARCH_DEPTH = 7;
+let searchInFlight = false;
 
 function suggestBestMove() {
   if (state.blocked.length !== 1) { toast('Block exactly one square to start the game.'); return; }
   if (!state.turn) { toast('Pick who goes first.'); return; }
-  if (searchInFlight) { toast('Already thinking — give it a moment.'); return; }
-  const depth = parseInt(document.getElementById('depthSel').value, 10) || 2;
+  if (searchInFlight) return;
+  searchInFlight = true;
   const btn = document.getElementById('suggestBtn');
   const origText = btn.textContent;
-  btn.disabled = true; btn.textContent = '🤔 Thinking… 0s';
-  const t0 = performance.now();
-  // Tick a live elapsed-time counter while the worker grinds.
-  const tickHandle = setInterval(() => {
-    if (!searchInFlight) return;
-    const s = Math.floor((performance.now() - t0) / 1000);
-    btn.textContent = `🤔 Thinking… ${s}s`;
-  }, 250);
-  searchInFlight = { btn, origText, depth, t0, tickHandle };
-  // Send a structured-clone-friendly snapshot of just the fields the
-  // engine needs. We strip non-engine state (history, turn, etc.).
-  const snap = JSON.parse(JSON.stringify({
-    cards: state.cards,
-    cols: state.cols,
-    rows: state.rows,
-    blocked: state.blocked,
-  }));
-  getSearchWorker().postMessage({ type: 'suggest', state: snap, side: state.turn, depth });
+  btn.disabled = true; btn.textContent = '🤔 Thinking…';
+  // Defer so the UI can paint the "thinking" state before the heavy loop.
+  setTimeout(() => {
+    try {
+      const t0 = performance.now();
+      const best = bestMoveForSide(state.turn, SEARCH_DEPTH);
+      const ms = Math.round(performance.now() - t0);
+      if (!best) { toast('No legal moves found.'); return; }
+      best.searchMs = ms;
+      best.requestedDepth = SEARCH_DEPTH;
+      state.recommendation = best;
+      render();
+    } finally {
+      btn.disabled = false; btn.textContent = origText;
+      searchInFlight = false;
+    }
+  }, 20);
 }
 
 /* ---------- card entry ---------- */

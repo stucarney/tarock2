@@ -590,11 +590,11 @@
   }
 
   // Budget = soft cap on total thinking time across iterative-deepening
-  // iterations. We pick generously (35s) so deep selections like depth 8
-  // can actually finish on the worst case (fresh-start, 0 placed). All
-  // shallower searches finish well under this — nothing is artificially
-  // slowed by raising the cap.
-  const SEARCH_BUDGET_MS = 35_000;
+  // iterations. The in-browser app caps at depth 7, where worst case is
+  // ~4s on Mac and a bit longer on iPhone. 10s gives margin for the slow
+  // path without ever blocking the page so long the browser warns.
+  // Deeper searches go through the Go CLI in solver/.
+  const SEARCH_BUDGET_MS = 10_000;
 
   /**
    * Iterative-deepening pessimistic minimax with a wall-clock budget.
