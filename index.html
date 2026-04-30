@@ -112,8 +112,11 @@
     gap: 3px;
     white-space: nowrap;
   }
-  .stat-atk::before { content: "⚔"; color: #ffd; }
-  .stat-def::before { content: "🛡"; color: #ffd; }
+  /* The "+ \fe0f" forces emoji presentation so both icons render as proper
+   * colorful emoji rather than the small monochrome fallbacks some fonts
+   * use. The color rule has no effect once the glyph picks emoji style. */
+  .stat-atk::before { content: "⚔\fe0f"; }
+  .stat-def::before { content: "🛡\fe0f"; }
   .arrow {
     position: absolute;
     color: #fde047;
@@ -289,11 +292,11 @@
         </select>
       </div>
       <div>
-        <label class="block text-xs text-amber-300/80">Attack ⚔</label>
+        <label class="block text-xs text-amber-300/80">Attack ⚔️</label>
         <div id="qaAtkRow" class="numpick-row"></div>
       </div>
       <div>
-        <label class="block text-xs text-amber-300/80">Defense 🛡</label>
+        <label class="block text-xs text-amber-300/80">Defense 🛡️</label>
         <div id="qaDefRow" class="numpick-row"></div>
       </div>
       <div>
@@ -317,7 +320,7 @@
   <details class="mt-4 bg-stone-900/40 rounded p-3 text-sm">
     <summary class="cursor-pointer text-amber-200 font-medium">How it works</summary>
     <div class="mt-2 text-amber-100/80 leading-relaxed space-y-2">
-      <p>Each guard has an <b>Attack</b> (⚔) and <b>Defense</b> (🛡). When you place a card, every adjacent (up/down/left/right) enemy card whose <b>defense &lt; your attack</b> flips to your side. If <b>defense = attack</b>, the game flips a coin — a popup will ask you to enter the actual outcome.</p>
+      <p>Each guard has an <b>Attack</b> (⚔️) and <b>Defense</b> (🛡️). When you place a card, every adjacent (up/down/left/right) enemy card whose <b>defense &lt; your attack</b> flips to your side. If <b>defense = attack</b>, the game flips a coin — a popup will ask you to enter the actual outcome.</p>
       <p><b>Special Directions</b> ✦ — set any of eight arrows on a card via the 3×3 compass in Quick Add or the <b>✏</b> editor. A Special Direction wins the battle on that side <i>regardless of who's attacking</i>:
       <br>• <b>Attacker's special toward defender</b> → attacker auto-wins the battle.
       <br>• <b>Defender's special pointing back at attacker</b> (opposite arrow) → defender auto-wins, no flip.
@@ -394,8 +397,8 @@ async function applyLiveCaptures(placedCard) {
       cap.card.owner = placedCard.owner;
       flashCell(cap.card.location.x, cap.card.location.y);
     } else {
-      const attackerLabel = `Your card (⚔${placedCard.atk})`;
-      const defenderLabel = `Their card (🛡${cap.card.def})`;
+      const attackerLabel = `Your card (⚔️ ${placedCard.atk})`;
+      const defenderLabel = `Their card (🛡️ ${cap.card.def})`;
       const subtitle = cap.reason === 'special-clash'
         ? 'Special Direction clash — coin toss'
         : 'Stats are tied — coin toss';
@@ -659,7 +662,7 @@ function renderStatus() {
     const evSign = sug.score >= 0 ? '+' : '';
     const reqDepth = sug.requestedDepth || sug.searchDepth;
     const depthLabel = reqDepth > sug.searchDepth ? `${sug.searchDepth}/${reqDepth}-ply (budget reached)` : `${sug.searchDepth}-ply`;
-    txt.textContent = `Best: ⚔${card?.atk}/🛡${card?.def}${sp} at r${sug.y+1} c${sug.x+1} · worst-case lead after ${depthLabel}: ${evSign}${sug.score.toFixed(2)} (guaranteed flips: ${sug.expGain.toFixed(2)}, ${sug.searchNodes.toLocaleString()} nodes / ${sug.searchMs}ms)`;
+    txt.textContent = `Best: ⚔️ ${card?.atk} / 🛡️ ${card?.def}${sp} at r${sug.y+1} c${sug.x+1} · worst-case lead after ${depthLabel}: ${evSign}${sug.score.toFixed(2)} (guaranteed flips: ${sug.expGain.toFixed(2)}, ${sug.searchNodes.toLocaleString()} nodes / ${sug.searchMs}ms)`;
   } else {
     txt.textContent = '';
   }
@@ -932,9 +935,9 @@ function openEditModal(cardId) {
         <option value="blue">Blue (You)</option>
         <option value="red">Red (Opponent)</option>
       </select>
-      <label class="block text-xs text-amber-300/80">Attack ⚔</label>
+      <label class="block text-xs text-amber-300/80">Attack ⚔️</label>
       <div id="emAtkRow" class="numpick-row mb-2"></div>
-      <label class="block text-xs text-amber-300/80">Defense 🛡</label>
+      <label class="block text-xs text-amber-300/80">Defense 🛡️</label>
       <div id="emDefRow" class="numpick-row mb-3"></div>
       <label class="block text-xs text-amber-300/80 mb-1">Special Directions</label>
       <div class="grid grid-cols-3 gap-1 mb-4 w-32 mx-auto" id="emSpecial">

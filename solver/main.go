@@ -85,7 +85,7 @@ func main() {
 	if c != nil && c.Special != 0 {
 		// Pad after each emoji-arrow with a space so multi-cell terminal
 		// rendering doesn't clobber neighbouring characters (the same
-		// problem we space around ⚔ and 🛡 above).
+		// problem we space around ⚔️ and 🛡️ above).
 		var sb strings.Builder
 		sb.WriteByte(' ')
 		for d := Dir(0); d < 8; d++ {
@@ -115,7 +115,7 @@ func main() {
 	// which collides with the digit that follows. Avoid using "→" as a
 	// separator since it visually conflicts with right-special arrows on
 	// the card itself.
-	fmt.Printf("Best move: ⚔ %d / 🛡 %d%s at row %d, col %d\n",
+	fmt.Printf("Best move: ⚔️ %d / 🛡️ %d%s at row %d, col %d\n",
 		c.Atk, c.Def, specials, res.Move.Y+1, res.Move.X+1)
 	fmt.Printf("Worst-case lead after %s: %s%d (guaranteed flips: %d)\n",
 		depthLabel, sign, res.Move.Score, res.Move.ExpGain)
