@@ -60,11 +60,13 @@ var dirNames = [8]string{
 	"down", "downLeft", "left", "upLeft",
 }
 
-// dirSymbols mirrors DIR_SYMBOL in engine.js — used in CLI output so the
-// printed special-direction arrows match what the web app shows on cards.
+// dirSymbols are the special-direction glyphs used in CLI output. We use
+// the emoji-presentation variants (each base arrow + U+FE0F VS16) so most
+// terminals render them as colorful bold emoji rather than small thin
+// monochrome characters that get lost in the surrounding text.
 var dirSymbols = [8]string{
-	"↑", "↗", "→", "↘",
-	"↓", "↙", "←", "↖",
+	"⬆️", "↗️", "➡️", "↘️",
+	"⬇️", "↙️", "⬅️", "↖️",
 }
 
 func dirFromName(s string) (Dir, error) {
