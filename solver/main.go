@@ -5,12 +5,18 @@
 //	pbpaste | go run ./solver
 //	go run ./solver --state '{...}'
 //	go run ./solver --max-time 5m
+//	go run ./solver --parallel 1   # single-threaded (with iterative deepening)
 //
 // Reads the JSON game-state produced by the web app's "Copy for CLI" button,
 // always solves to depth 11 (the full game tree from any position), and
-// prints the recommended move plus diagnostics. No iterative-deepening
-// fallback by default — if you want a softer cap, pass --max-time so the
-// budget kicks in and the deepest fully-completed depth is returned.
+// prints the recommended move plus diagnostics.
+//
+// The default search is root-parallel across all CPU cores: each worker
+// takes a slice of (card, square) root moves, has its own transposition
+// table, and shares an atomic α-β bound so cuts from one worker tighten
+// the windows of the others. If you want the older single-threaded
+// iterative-deepening behavior (slower but deterministic), pass
+// `--parallel 1`.
 package main
 
 import (
@@ -18,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -27,19 +34,26 @@ const targetDepth = 11
 func main() {
 	stateFlag := flag.String("state", "", "Game state JSON (overrides stdin)")
 	maxTime := flag.Duration("max-time", 0, "Soft wall-clock cap; 0 means no cap (Ctrl+C to stop)")
+	parallel := flag.Int("parallel", runtime.NumCPU(), "Number of worker goroutines (1 = single-threaded with iterative deepening)")
 	flag.Parse()
 
+	// Accept the JSON state in three ways, in priority order:
+	//   1. positional arg (the form the web app's "Copy for CLI" emits)
+	//   2. --state '...' flag
+	//   3. stdin (e.g. `pbpaste | tarock-solve`)
 	var src io.Reader
-	if *stateFlag != "" {
+	switch {
+	case flag.NArg() >= 1:
+		src = strings.NewReader(flag.Arg(0))
+	case *stateFlag != "":
 		src = strings.NewReader(*stateFlag)
-	} else {
-		// Detect a non-TTY stdin and read it; otherwise prompt the user.
+	default:
 		fi, _ := os.Stdin.Stat()
 		if fi != nil && (fi.Mode()&os.ModeCharDevice) == 0 {
 			src = os.Stdin
 		} else {
-			fmt.Fprintln(os.Stderr, "tarock-solve: paste game state JSON on stdin, or pass --state '...'")
-			fmt.Fprintln(os.Stderr, "  (in the web app, click 📋 Copy for CLI, then run: pbpaste | tarock-solve)")
+			fmt.Fprintln(os.Stderr, "tarock-solve: pass JSON as the first arg, or via --state, or pipe it on stdin")
+			fmt.Fprintln(os.Stderr, "  (in the web app, click 📋 Copy for CLI — it puts a ready-to-paste command on your clipboard)")
 			os.Exit(2)
 		}
 	}
@@ -50,8 +64,17 @@ func main() {
 		os.Exit(2)
 	}
 
-	fmt.Printf("Solving for %s, depth %d… (Ctrl+C to abort)\n", game.Turn, targetDepth)
-	res, err := game.BestMove(targetDepth, *maxTime)
+	mode := fmt.Sprintf("parallel × %d", *parallel)
+	if *parallel == 1 {
+		mode = "single-threaded (iter. deepening)"
+	}
+	fmt.Printf("Solving for %s, depth %d, %s… (Ctrl+C to abort)\n", game.Turn, targetDepth, mode)
+	var res *SearchResult
+	if *parallel == 1 {
+		res, err = game.BestMove(targetDepth, *maxTime)
+	} else {
+		res, err = game.BestMoveParallel(targetDepth, *maxTime, *parallel)
+	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "tarock-solve:", err)
 		os.Exit(1)
@@ -71,8 +94,10 @@ func main() {
 		specials = strings.TrimRight(sb.String(), " ")
 	}
 
-	depthLabel := fmt.Sprintf("%d-ply", res.SearchDepth)
-	if res.SearchDepth < targetDepth {
+	depthLabel := fmt.Sprintf("%d-ply", targetDepth)
+	if res.SearchDepth < 0 {
+		depthLabel = fmt.Sprintf("partial %d-ply (budget reached, partial root coverage)", targetDepth)
+	} else if res.SearchDepth < targetDepth {
 		depthLabel = fmt.Sprintf("%d/%d-ply (budget reached)", res.SearchDepth, targetDepth)
 	}
 

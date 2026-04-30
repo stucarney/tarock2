@@ -985,9 +985,13 @@ document.querySelectorAll('.addCardBtn').forEach(btn => {
 
 document.getElementById('suggestBtn').addEventListener('click', suggestBestMove);
 
-/* Export the current game state as compact JSON to the clipboard so the Go
- * CLI solver (./solver) can read it via:
- *     pbpaste | ./tarock-solve
+/* Export the current game as a complete shell command, ready to paste into
+ * a terminal sitting in the solver/ directory:
+ *     ./tarock-solve '{"cards":[…],…}'
+ * The Go CLI accepts the JSON as a positional arg, so this is one paste
+ * away from a depth-11 result. JSON only uses double quotes, so wrapping
+ * the whole thing in single quotes for the shell is safe.
+ *
  * The shape matches what solver/engine.go's ParseGame expects. */
 document.getElementById('exportBtn').addEventListener('click', async () => {
   if (!state.turn) { toast('Pick who goes first first.'); return; }
@@ -1003,22 +1007,21 @@ document.getElementById('exportBtn').addEventListener('click', async () => {
     blocked: state.blocked.map(b => ({ x: b.x, y: b.y })),
     turn: state.turn,
   };
-  const json = JSON.stringify(payload);
+  const cmd = `./tarock-solve '${JSON.stringify(payload)}'`;
   try {
-    await navigator.clipboard.writeText(json);
-    toast('Copied ✓ — run: pbpaste | ./tarock-solve');
+    await navigator.clipboard.writeText(cmd);
+    toast('Copied ✓ — paste in your terminal (solver/)');
   } catch (e) {
-    // navigator.clipboard requires a secure context; fall back to a textarea
-    // and prompt the user to copy manually.
+    // navigator.clipboard requires a secure context; fall back to a textarea.
     const ta = document.createElement('textarea');
-    ta.value = json;
+    ta.value = cmd;
     document.body.appendChild(ta);
     ta.select();
     let ok = false;
     try { ok = document.execCommand('copy'); } catch (_) {}
     ta.remove();
-    toast(ok ? 'Copied ✓ — run: pbpaste | ./tarock-solve' : 'Copy failed — open dev tools and grab from console:');
-    if (!ok) console.log(json);
+    toast(ok ? 'Copied ✓ — paste in your terminal (solver/)' : 'Copy failed — see console');
+    if (!ok) console.log(cmd);
   }
 });
 document.getElementById('blockBtn').addEventListener('click', () => {
