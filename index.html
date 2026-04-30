@@ -97,15 +97,23 @@
   .stat-row {
     position: absolute;
     bottom: 0; left: 0; right: 0;
-    display: flex; justify-content: space-between;
+    display: flex; justify-content: space-between; align-items: center;
     padding: 4px 6px;
     background: rgba(0,0,0,.4);
     color: white;
     font-weight: bold;
     font-size: 0.85rem;
+    line-height: 1;
+    white-space: nowrap;
   }
-  .stat-atk::before { content: "⚔"; margin-right: 3px; color: #ffd; }
-  .stat-def::before { content: "🛡"; margin-right: 3px; color: #ffd; }
+  .stat-atk, .stat-def {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    white-space: nowrap;
+  }
+  .stat-atk::before { content: "⚔"; color: #ffd; }
+  .stat-def::before { content: "🛡"; color: #ffd; }
   .arrow {
     position: absolute;
     color: #fde047;
