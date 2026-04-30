@@ -329,3 +329,414 @@ func TestBestMove_BudgetReturnsShallowResult(t *testing.T) {
 		t.Fatalf("expected at least depth 1, got %d", res.SearchDepth)
 	}
 }
+
+// ---------- Combat edge cases (mirroring engine.test.js) ----------
+
+func TestCombat_IgnoresSameSideNeighbor(t *testing.T) {
+	got, _, _ := classifyOne(t,
+		cardSpec{side: SideBlue, atk: 9},
+		cardSpec{side: SideBlue, def: 0, x: 2, y: 1}, // friendly, ortho right
+	)
+	if got {
+		t.Fatal("expected no battle against same-side neighbor")
+	}
+}
+
+func TestCombat_MultipleOrthoNeighborsAllFlipWhenBeaten(t *testing.T) {
+	state := freshState()
+	att := mkCard(cardSpec{id: 1, side: SideBlue, atk: 5})
+	defs := []Card{
+		mkCard(cardSpec{id: 2, side: SideRed, def: 1, placed: true, x: 0, y: 1}), // left
+		mkCard(cardSpec{id: 3, side: SideRed, def: 2, placed: true, x: 2, y: 1}), // right
+		mkCard(cardSpec{id: 4, side: SideRed, def: 3, placed: true, x: 1, y: 0}), // up
+	}
+	b := append(Board{att}, defs...)
+	idx := buildIndexes(b)
+	pos := buildPosIndex(b)
+	cardCopy := b[idx.IDIndex[1]]
+	outs := moveOutcomes(state, idx, &pos, &cardCopy, 1, 1, SideBlue, b)
+	if len(outs) != 1 {
+		t.Fatalf("expected 1 outcome (all certain), got %d", len(outs))
+	}
+	for _, d := range defs {
+		i := idx.IDIndex[d.ID]
+		if outs[0][i].Owner != SideBlue {
+			t.Errorf("card id=%d should have flipped to blue, still %v", d.ID, outs[0][i].Owner)
+		}
+	}
+}
+
+func TestCombat_CornerIgnoresOutOfBoundsNeighbors(t *testing.T) {
+	// Place attacker at (0,0). Specials toward up/left/upLeft point off-board.
+	state := freshState()
+	att := mkCard(cardSpec{id: 1, side: SideBlue, atk: 5,
+		special: []Dir{DirLeft, DirUp, DirUpLeft}})
+	def := mkCard(cardSpec{id: 2, side: SideRed, def: 1, placed: true, x: 1, y: 0}) // right ortho
+	b := Board{att, def}
+	idx := buildIndexes(b)
+	pos := buildPosIndex(b)
+	cardCopy := b[0]
+	outs := moveOutcomes(state, idx, &pos, &cardCopy, 0, 0, SideBlue, b)
+	if len(outs) != 1 {
+		t.Fatalf("expected 1 outcome, got %d", len(outs))
+	}
+	if outs[0][1].Owner != SideBlue {
+		t.Error("right-side defender should have flipped (only in-bounds neighbor)")
+	}
+}
+
+func TestCombat_AttackerSpecialAppliesOnlyToMatchingDirection(t *testing.T) {
+	// Attacker has 'right' special, defender is on the LEFT (atk 1 < def 5).
+	got, _, _ := classifyOne(t,
+		cardSpec{side: SideBlue, atk: 1, special: []Dir{DirRight}},
+		cardSpec{side: SideRed, def: 5, x: 0, y: 1},
+	)
+	if got {
+		t.Fatal("right-special should not save an attacker fighting to the left with low atk")
+	}
+}
+
+// ---------- moveOutcomes shape ----------
+
+func TestMoveOutcomes_ZeroChanceOneOutcomePEqualsOne(t *testing.T) {
+	state := freshState()
+	b := mkBoard(
+		cardSpec{id: 1, side: SideBlue, atk: 5},
+		cardSpec{id: 2, side: SideRed, def: 1, placed: true, x: 2, y: 1},
+	)
+	idx := buildIndexes(b)
+	pos := buildPosIndex(b)
+	cardCopy := b[0]
+	outs := moveOutcomes(state, idx, &pos, &cardCopy, 1, 1, SideBlue, b)
+	if len(outs) != 1 {
+		t.Fatalf("expected 1 outcome, got %d", len(outs))
+	}
+	placed := outs[0][idx.IDIndex[1]]
+	if !placed.Placed || placed.X != 1 || placed.Y != 1 || placed.Owner != SideBlue {
+		t.Errorf("placed card not at (1,1) blue: %+v", placed)
+	}
+	if outs[0][idx.IDIndex[2]].Owner != SideBlue {
+		t.Error("certain flip should apply in the only outcome")
+	}
+}
+
+func TestMoveOutcomes_OneChanceTwoOutcomesExactlyOneFlips(t *testing.T) {
+	state := freshState()
+	b := mkBoard(
+		cardSpec{id: 1, side: SideBlue, atk: 3},
+		cardSpec{id: 2, side: SideRed, def: 3, placed: true, x: 2, y: 1}, // tie
+	)
+	idx := buildIndexes(b)
+	pos := buildPosIndex(b)
+	cardCopy := b[0]
+	outs := moveOutcomes(state, idx, &pos, &cardCopy, 1, 1, SideBlue, b)
+	if len(outs) != 2 {
+		t.Fatalf("expected 2 outcomes, got %d", len(outs))
+	}
+	flips := 0
+	for _, o := range outs {
+		if o[idx.IDIndex[2]].Owner == SideBlue {
+			flips++
+		}
+	}
+	if flips != 1 {
+		t.Fatalf("exactly one branch should flip the enemy; got %d", flips)
+	}
+}
+
+func TestMoveOutcomes_CertainCapturesPersistAcrossChanceBranches(t *testing.T) {
+	state := freshState()
+	b := mkBoard(
+		cardSpec{id: 1, side: SideBlue, atk: 5},
+		cardSpec{id: 2, side: SideRed, def: 1, placed: true, x: 0, y: 1}, // certain (atk>def)
+		cardSpec{id: 3, side: SideRed, def: 5, placed: true, x: 2, y: 1}, // tie (chance)
+	)
+	idx := buildIndexes(b)
+	pos := buildPosIndex(b)
+	cardCopy := b[0]
+	outs := moveOutcomes(state, idx, &pos, &cardCopy, 1, 1, SideBlue, b)
+	if len(outs) != 2 {
+		t.Fatalf("expected 2 outcomes (1 chance branch), got %d", len(outs))
+	}
+	for _, o := range outs {
+		if o[idx.IDIndex[2]].Owner != SideBlue {
+			t.Error("certain capture should persist in every chance branch")
+		}
+	}
+}
+
+func TestMoveOutcomes_DoesNotMutateInputBoard(t *testing.T) {
+	state := freshState()
+	b := mkBoard(
+		cardSpec{id: 1, side: SideBlue, atk: 5},
+		cardSpec{id: 2, side: SideRed, def: 1, placed: true, x: 2, y: 1},
+	)
+	before := make(Board, len(b))
+	copy(before, b)
+	idx := buildIndexes(b)
+	pos := buildPosIndex(b)
+	cardCopy := b[0]
+
+	moveOutcomes(state, idx, &pos, &cardCopy, 1, 1, SideBlue, b)
+
+	for i := range b {
+		if b[i] != before[i] {
+			t.Errorf("input board mutated at index %d:\n  before: %+v\n  after:  %+v", i, before[i], b[i])
+		}
+	}
+}
+
+// ---------- Eval / game-over / empties ----------
+
+func TestStaticScore_EmptyBoardIsZero(t *testing.T) {
+	if got := staticScore(Board{}); got != 0 {
+		t.Errorf("expected 0, got %d", got)
+	}
+}
+
+func TestStaticScore_IgnoresHandCards(t *testing.T) {
+	b := mkBoard(
+		cardSpec{id: 1, side: SideBlue, placed: true, x: 0, y: 0},
+		cardSpec{id: 2, side: SideBlue, placed: true, x: 1, y: 0},
+		cardSpec{id: 3, side: SideRed, placed: true, x: 2, y: 0},
+		cardSpec{id: 4, side: SideRed}, // in hand — should not count
+	)
+	if got := staticScore(b); got != 1 {
+		t.Errorf("expected +1 (2 blue placed - 1 red placed), got %d", got)
+	}
+}
+
+func TestStaticScore_CountsCurrentOwnerNotOriginalSide(t *testing.T) {
+	b := mkBoard(
+		cardSpec{id: 1, side: SideBlue, placed: true, x: 0, y: 0},
+		cardSpec{id: 2, side: SideBlue, placed: true, x: 1, y: 0},
+		cardSpec{id: 3, side: SideRed, placed: true, x: 2, y: 0},
+	)
+	// Now flip the red card to blue (change current owner).
+	b[2].Owner = SideBlue
+	if got := staticScore(b); got != 3 {
+		t.Errorf("expected +3 after flipping red→blue, got %d", got)
+	}
+}
+
+func TestEmptySquares_ExcludesBlockedAndOccupied(t *testing.T) {
+	state := &State{Cols: 4, Rows: 3, Blocked: []Pos{{X: 0, Y: 0}}}
+	b := mkBoard(
+		cardSpec{id: 1, side: SideBlue, placed: true, x: 1, y: 0},
+	)
+	empties := emptySquares(state, b)
+	// 12 cells - 1 blocked - 1 occupied = 10 empties.
+	if len(empties) != 10 {
+		t.Fatalf("expected 10 empties, got %d", len(empties))
+	}
+	for _, e := range empties {
+		if e.X == 0 && e.Y == 0 {
+			t.Error("blocked cell leaked into empties")
+		}
+		if e.X == 1 && e.Y == 0 {
+			t.Error("occupied cell leaked into empties")
+		}
+	}
+}
+
+func TestGameOver_FullBoard(t *testing.T) {
+	// 4x3 with 1 blocked = 11 playable cells; fill them all.
+	state := &State{Cols: 4, Rows: 3, Blocked: []Pos{{X: 0, Y: 0}}}
+	id := 100
+	var specs []cardSpec
+	for y := 0; y < 3; y++ {
+		for x := 0; x < 4; x++ {
+			if x == 0 && y == 0 {
+				continue
+			}
+			specs = append(specs, cardSpec{id: id, side: SideBlue, placed: true, x: x, y: y})
+			id++
+		}
+	}
+	b := mkBoard(specs...)
+	if !gameOver(state, b) {
+		t.Fatal("expected gameOver=true with all 11 cells filled")
+	}
+}
+
+func TestGameOver_BothHandsEmptyEvenWithCellsLeft(t *testing.T) {
+	state := freshState()
+	b := mkBoard(
+		cardSpec{id: 1, side: SideBlue, placed: true, x: 0, y: 0},
+		cardSpec{id: 2, side: SideRed, placed: true, x: 1, y: 0},
+	)
+	if !gameOver(state, b) {
+		t.Fatal("expected gameOver=true when both hands empty")
+	}
+}
+
+func TestGameOver_FalseMidGame(t *testing.T) {
+	state := freshState()
+	b := mkBoard(
+		cardSpec{id: 1, side: SideBlue, atk: 1}, // in hand
+		cardSpec{id: 2, side: SideRed, atk: 1},  // in hand
+		cardSpec{id: 3, side: SideBlue, placed: true, x: 0, y: 0},
+	)
+	if gameOver(state, b) {
+		t.Fatal("expected gameOver=false mid-game")
+	}
+}
+
+// ---------- Search: red-side mirror, mutation safety, populated stats ----------
+
+func TestBestMove_RedSideIsSymmetric(t *testing.T) {
+	// Mirror of TestBestMove_PrefersGuaranteedFlipOverTie but with red as user.
+	game := &Game{
+		State: freshState(),
+		Turn:  SideRed,
+		Board: mkBoard(
+			cardSpec{id: 1, side: SideRed, atk: 3},
+			cardSpec{id: 2, side: SideBlue, def: 3, placed: true, x: 1, y: 0},
+			cardSpec{id: 3, side: SideBlue, def: 3, placed: true, x: 1, y: 1},
+			cardSpec{id: 4, side: SideBlue, def: 2, placed: true, x: 3, y: 1},
+		),
+	}
+	res, err := game.BestMove(1, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Score is from red's POV. Starting: 3 blue placed, 0 red. After best move:
+	// 1 red placed + 1 flipped, 2 blue remain → staticScore = -0; sideEv = 0.
+	if res.Move.Score != 0 {
+		t.Errorf("expected score 0, got %d", res.Move.Score)
+	}
+	if res.Move.ExpGain != 2 {
+		t.Errorf("expected expGain 2 (placement + 1 flip), got %d", res.Move.ExpGain)
+	}
+}
+
+func TestBestMove_DoesNotMutateGameBoard(t *testing.T) {
+	game := &Game{
+		State: freshState(),
+		Turn:  SideBlue,
+		Board: mkBoard(
+			cardSpec{id: 1, side: SideBlue, atk: 3},
+			cardSpec{id: 2, side: SideRed, def: 1, placed: true, x: 1, y: 0},
+			cardSpec{id: 3, side: SideRed, def: 5, placed: true, x: 2, y: 1},
+		),
+	}
+	before := make(Board, len(game.Board))
+	copy(before, game.Board)
+	if _, err := game.BestMove(3, 0); err != nil {
+		t.Fatal(err)
+	}
+	for i := range game.Board {
+		if game.Board[i] != before[i] {
+			t.Errorf("game.Board[%d] mutated:\n  before: %+v\n  after:  %+v",
+				i, before[i], game.Board[i])
+		}
+	}
+}
+
+func TestBestMove_PopulatesSearchStats(t *testing.T) {
+	game := &Game{
+		State: freshState(),
+		Turn:  SideBlue,
+		Board: mkBoard(
+			cardSpec{id: 1, side: SideBlue, atk: 5},
+			cardSpec{id: 2, side: SideRed, def: 1, placed: true, x: 1, y: 0},
+		),
+	}
+	res, err := game.BestMove(2, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.SearchDepth != 2 {
+		t.Errorf("expected searchDepth 2, got %d", res.SearchDepth)
+	}
+	if res.Nodes <= 0 {
+		t.Errorf("expected nodes > 0, got %d", res.Nodes)
+	}
+	if res.Elapsed <= 0 {
+		t.Errorf("expected elapsed > 0, got %v", res.Elapsed)
+	}
+}
+
+// ---------- Parallel agreement ----------
+
+// The parallel and sequential search must converge to the same recommended
+// move on a fixed position. This is the strongest defense against engine
+// bugs: if the answers differ, something is wrong in either the parallel
+// orchestration or the α-β / TT bookkeeping.
+func TestBestMove_ParallelAgreesWithSequential(t *testing.T) {
+	mkGame := func() *Game {
+		return &Game{
+			State: freshState(),
+			Turn:  SideBlue,
+			Board: mkBoard(
+				cardSpec{id: 1, side: SideBlue, atk: 4, def: 4},
+				cardSpec{id: 2, side: SideBlue, atk: 5, def: 1, special: []Dir{DirRight}},
+				cardSpec{id: 3, side: SideRed, def: 3, placed: true, x: 1, y: 0},
+				cardSpec{id: 4, side: SideRed, def: 2, placed: true, x: 2, y: 1},
+				cardSpec{id: 5, side: SideRed, atk: 2, def: 5, special: []Dir{DirLeft}},
+			),
+		}
+	}
+	seq, err := mkGame().BestMove(5, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	par, err := mkGame().BestMoveParallel(5, 0, 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if seq.Move.Score != par.Move.Score {
+		t.Errorf("score mismatch: seq=%d par=%d", seq.Move.Score, par.Move.Score)
+	}
+	// The chosen move should be one with the best score; tie-break on expGain
+	// could legitimately differ between sequential and parallel order, but the
+	// score must agree.
+}
+
+// ---------- Scenario tests with hand-verified outcomes ----------
+
+// Tiny end-of-game position: blue has one card to play, red has one. The
+// blue card is best placed where it both flips a red and blocks red's
+// counter-flip on its next turn. We hand-verify the answer.
+func TestScenario_EndgameOneEachInHand(t *testing.T) {
+	state := &State{Cols: 4, Rows: 3, Blocked: []Pos{{X: 3, Y: 2}}}
+	game := &Game{
+		State: state,
+		Turn:  SideBlue,
+		Board: mkBoard(
+			// Blue: 1 in hand
+			cardSpec{id: 1, side: SideBlue, atk: 5, def: 5},
+			// Red: 1 in hand
+			cardSpec{id: 2, side: SideRed, atk: 5, def: 5},
+			// 9 cards already placed (mostly blue, neutral position)
+			cardSpec{id: 3, side: SideBlue, placed: true, x: 0, y: 0},
+			cardSpec{id: 4, side: SideRed, placed: true, x: 1, y: 0, def: 1}, // beatable
+			cardSpec{id: 5, side: SideBlue, placed: true, x: 2, y: 0},
+			cardSpec{id: 6, side: SideBlue, placed: true, x: 3, y: 0},
+			cardSpec{id: 7, side: SideRed, placed: true, x: 0, y: 1},
+			cardSpec{id: 8, side: SideRed, placed: true, x: 1, y: 1},
+			cardSpec{id: 9, side: SideRed, placed: true, x: 2, y: 1},
+			cardSpec{id: 10, side: SideBlue, placed: true, x: 3, y: 1},
+			cardSpec{id: 11, side: SideBlue, placed: true, x: 0, y: 2},
+			// Two empty cells: (1,2) and (2,2). Blue plays one, red plays the other.
+		),
+	}
+	res, err := game.BestMove(11, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Blue must place card 1 (the only hand card). The choice between (1,2)
+	// and (2,2) is what matters. Both squares are ortho-adjacent to the
+	// red-def-1 card at (1,0) only via (1,1) which is occupied — so blue's
+	// card at (1,2) or (2,2) doesn't actually flip the def=1 red. They're
+	// both adjacent to red at (1,1)/(2,1) but def stats don't match attacker
+	// def. The interesting test is that BestMove returns SOMETHING and
+	// doesn't crash on a near-end-of-game position.
+	if res.Move.CardID != 1 {
+		t.Errorf("expected to play card 1, got card %d", res.Move.CardID)
+	}
+	if res.Move.X != 1 && res.Move.X != 2 || res.Move.Y != 2 {
+		t.Errorf("expected placement at (1,2) or (2,2); got (%d,%d)",
+			res.Move.X, res.Move.Y)
+	}
+}

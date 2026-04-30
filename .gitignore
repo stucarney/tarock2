@@ -11,3 +11,6 @@
 
 # Node — only if dependencies ever get added; the app currently has none
 node_modules/
+
+# Go build artifact (`go build -o tarock-solve .` in solver/)
+solver/tarock-solve
