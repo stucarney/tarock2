@@ -98,11 +98,11 @@
     position: absolute;
     bottom: 0; left: 0; right: 0;
     display: flex; justify-content: space-between; align-items: center;
-    padding: 4px 6px;
-    background: rgba(0,0,0,.4);
+    padding: 6px 9px;
+    background: rgba(0,0,0,.45);
     color: white;
     font-weight: bold;
-    font-size: 0.85rem;
+    font-size: 1.05rem;
     line-height: 1;
     white-space: nowrap;
   }
@@ -119,18 +119,18 @@
     color: #fde047;
     text-shadow: 0 0 4px #b45309, 0 1px 2px rgba(0,0,0,.8);
     font-weight: 900;
-    font-size: 1.3rem;
+    font-size: 1.6rem;
     line-height: 1;
     pointer-events: none;
   }
-  .arrow.up        { top: 2px;     left: 50%; transform: translateX(-50%); }
-  .arrow.right     { top: 50%;     right: 3px; transform: translateY(-50%); }
-  .arrow.down      { bottom: 22px; left: 50%; transform: translateX(-50%); }
-  .arrow.left      { top: 50%;     left: 3px; transform: translateY(-50%); }
-  .arrow.upLeft    { top: 2px;     left: 3px; }
-  .arrow.upRight   { top: 2px;     right: 3px; }
-  .arrow.downLeft  { bottom: 22px; left: 3px; }
-  .arrow.downRight { bottom: 22px; right: 3px; }
+  .arrow.up        { top: 4px;     left: 50%; transform: translateX(-50%); }
+  .arrow.right     { top: 50%;     right: 5px; transform: translateY(-50%); }
+  .arrow.down      { bottom: 30px; left: 50%; transform: translateX(-50%); }
+  .arrow.left      { top: 50%;     left: 5px; transform: translateY(-50%); }
+  .arrow.upLeft    { top: 4px;     left: 5px; }
+  .arrow.upRight   { top: 4px;     right: 5px; }
+  .arrow.downLeft  { bottom: 30px; left: 5px; }
+  .arrow.downRight { bottom: 30px; right: 5px; }
   .edit-btn {
     position: absolute;
     top: -6px; left: -6px;
@@ -148,8 +148,8 @@
   }
   .edit-btn:hover { background: #d97706; opacity: 1; transform: scale(1.1); }
   .hand-card {
-    width: 110px;
-    height: 150px;
+    width: 130px;
+    height: 175px;
     position: relative;
   }
   .delete-btn {
@@ -439,7 +439,7 @@ function render() {
 
 function renderBoard() {
   const board = document.getElementById('board');
-  board.style.gridTemplateColumns = `repeat(${state.cols}, minmax(0, 1fr))`;
+  board.style.gridTemplateColumns = `repeat(${state.cols}, minmax(140px, 1fr))`;
   board.innerHTML = '';
   for (let y=0; y<state.rows; y++) {
     for (let x=0; x<state.cols; x++) {
