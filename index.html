@@ -638,7 +638,7 @@ function renderStatus() {
     const evSign = sug.score >= 0 ? '+' : '';
     const reqDepth = sug.requestedDepth || sug.searchDepth;
     const depthLabel = reqDepth > sug.searchDepth ? `${sug.searchDepth}/${reqDepth}-ply (budget reached)` : `${sug.searchDepth}-ply`;
-    txt.textContent = `Best: ⚔${card?.atk}/🛡${card?.def}${sp} → r${sug.y+1} c${sug.x+1} · worst-case lead after ${depthLabel}: ${evSign}${sug.score.toFixed(2)} (guaranteed flips: ${sug.expGain.toFixed(2)}, ${sug.searchNodes.toLocaleString()} nodes / ${sug.searchMs}ms)`;
+    txt.textContent = `Best: ⚔${card?.atk}/🛡${card?.def}${sp} at r${sug.y+1} c${sug.x+1} · worst-case lead after ${depthLabel}: ${evSign}${sug.score.toFixed(2)} (guaranteed flips: ${sug.expGain.toFixed(2)}, ${sug.searchNodes.toLocaleString()} nodes / ${sug.searchMs}ms)`;
   } else {
     txt.textContent = '';
   }
